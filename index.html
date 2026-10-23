@@ -1,0 +1,1251 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Kitchen Duel</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="description" content="A 90-second cooking duel. Mystery ingredient, three stoves, three judges. Challenge a friend with a link.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lilita+One&family=Rubik:wght@400;500;700;800&display=swap">
+<style>
+/* Layout: one phone-width column staged like a cooking-show set: clock and stoves up top, pantry in the middle, the pass (plate) at the bottom. */
+:root {
+  --stage: #221430;
+  --panel: #311f3d;
+  --panel-2: #432c52;
+  --line: #5a4270;
+  --cream: #fff3e0;
+  --muted: #c9b4d4;
+  --saffron: #ffb627;
+  --saffron-dim: #7a5a1e;
+  --pom: #ff5468;
+  --pom-dim: #6e2537;
+  --mint: #3ddc97;
+  --steel: #9db1c6;
+  --char: #150d1b;
+  --plate: #f6f0f7;
+  --plate-rim: #d8cde0;
+  --display: "Lilita One", "Arial Rounded MT Bold", "Trebuchet MS", system-ui, sans-serif;
+  --body: "Rubik", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --r: 14px;
+  color-scheme: dark;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { min-height: 100%; }
+body {
+  margin: 0;
+  background: radial-gradient(130% 55% at 50% -8%, var(--panel-2), var(--stage) 62%) fixed, var(--stage);
+  color: var(--cream);
+  font: 400 15px/1.5 var(--body);
+  -webkit-tap-highlight-color: transparent;
+}
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--stage); }
+.app {
+  max-width: 560px;
+  margin: 0 auto;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 20px 48px;
+}
+.screen { display: flex; flex-direction: column; gap: 18px; }
+h1, h2, h3 { font-family: var(--display); font-weight: 400; margin: 0; text-wrap: balance; letter-spacing: .01em; }
+h2 { font-size: 30px; line-height: 1.05; }
+h3 { font-size: 19px; }
+p { margin: 0; }
+.eyebrow { font: 700 12px/1.2 var(--body); text-transform: uppercase; letter-spacing: .14em; color: var(--saffron); }
+.muted { color: var(--muted); }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); padding: 16px; }
+
+/* Buttons: chunky game-show keys that press down */
+.btn {
+  appearance: none; border: 0; cursor: pointer;
+  font: 700 16px/1.2 var(--body); color: var(--cream);
+  background: var(--panel-2); border-radius: 12px;
+  padding: 14px 18px; min-height: 48px;
+  box-shadow: 0 4px 0 var(--char);
+  transition: transform .06s, box-shadow .06s;
+  text-align: center;
+}
+.btn:active:not(:disabled) { transform: translateY(3px); box-shadow: 0 1px 0 var(--char); }
+.btn:focus-visible, button:focus-visible, input:focus-visible, summary:focus-visible { outline: 3px solid var(--saffron); outline-offset: 2px; }
+.btn.primary { background: var(--saffron); color: var(--char); }
+.btn.danger { background: var(--pom); color: var(--char); }
+.btn.small { padding: 10px 14px; min-height: 42px; font-size: 14px; }
+.btn:disabled { opacity: .4; cursor: not-allowed; }
+.btn .sub { display: block; font-weight: 400; font-size: 13px; opacity: .8; margin-top: 2px; }
+
+/* Home */
+.masthead { display: flex; flex-direction: column; gap: 10px; padding-top: 8px; }
+.logo { font-size: clamp(64px, 20vw, 104px); line-height: .86; color: var(--saffron); text-shadow: 0 5px 0 var(--pom-dim); }
+.logo span { color: var(--cream); }
+.lede { font-size: 17px; max-width: 34ch; color: var(--muted); }
+.today { display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; align-items: center; }
+.today .judges-mini { font-size: 26px; letter-spacing: 2px; grid-row: span 2; }
+.today strong { font-size: 18px; }
+.menu { display: flex; flex-direction: column; gap: 12px; }
+.challenge { background: var(--saffron); color: var(--char); border-radius: var(--r); padding: 16px; display: flex; flex-direction: column; gap: 10px; }
+.challenge h3 { font-size: 24px; }
+.challenge .btn { background: var(--char); color: var(--saffron); box-shadow: 0 4px 0 var(--saffron-dim); }
+.code-form { display: flex; flex-direction: column; gap: 8px; }
+.code-form label { font-weight: 500; color: var(--muted); }
+.row { display: flex; gap: 8px; }
+.row > input { flex: 1; min-width: 0; }
+input[type="text"] {
+  font: 500 16px var(--body); color: var(--cream); background: var(--char);
+  border: 1px solid var(--line); border-radius: 10px; padding: 12px; min-height: 46px;
+}
+.err { color: var(--pom); font-weight: 500; }
+details.howto { border-top: 1px solid var(--line); padding-top: 12px; }
+details.howto summary { cursor: pointer; font-weight: 700; }
+details.howto ol { padding-left: 20px; margin: 10px 0 0; display: flex; flex-direction: column; gap: 6px; color: var(--muted); }
+
+/* Brief */
+.brief-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.brief-grid > * { min-width: 0; }
+.card-label { font: 700 11px/1 var(--body); text-transform: uppercase; letter-spacing: .14em; color: var(--muted); margin-bottom: 8px; }
+.big-emoji { font-size: 44px; line-height: 1; }
+.mystery-card { background: var(--saffron); color: var(--char); border-color: transparent; }
+.mystery-card .card-label { color: var(--char); opacity: .7; }
+.mystery-card strong { font-family: var(--display); font-size: 22px; font-weight: 400; }
+.theme-card strong { font-family: var(--display); font-size: 22px; font-weight: 400; color: var(--saffron); display: block; }
+.judge-list { display: flex; flex-direction: column; gap: 10px; }
+.judge-item { display: grid; grid-template-columns: 44px 1fr; gap: 10px; align-items: center; }
+.avatar { width: 44px; height: 44px; border-radius: 50%; background: var(--panel-2); display: grid; place-items: center; font-size: 24px; }
+.judge-item b { display: block; }
+.judge-item small { color: var(--muted); font-size: 13px; }
+.names { display: flex; flex-direction: column; gap: 10px; }
+.names label { display: flex; flex-direction: column; gap: 6px; font-weight: 500; color: var(--muted); }
+
+/* Kitchen HUD */
+.hud { display: grid; grid-template-columns: auto 1fr; gap: 12px; align-items: center; position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--stage); padding-block: 8px; margin-block: -8px; }
+.timer { font: 800 44px/1 var(--body); font-variant-numeric: tabular-nums; color: var(--cream); background: var(--char); border-radius: 12px; padding: 8px 14px; min-width: 120px; text-align: center; }
+.timer.urgent { color: var(--pom); animation: pulse .5s ease-in-out infinite alternate; }
+@keyframes pulse { to { transform: scale(1.06); } }
+.hud-chips { display: flex; flex-wrap: wrap; gap: 6px; min-width: 0; }
+.chip { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 500; background: var(--panel); border: 1px solid var(--line); padding: 5px 10px; border-radius: 999px; }
+.chip.mystery { background: var(--saffron); color: var(--char); border-color: transparent; }
+.chip.cook { background: var(--mint); color: var(--char); border-color: transparent; }
+
+.stations { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.station { background: var(--char); border: 2px solid var(--line); border-radius: var(--r); padding: 10px 8px; display: flex; flex-direction: column; align-items: center; gap: 6px; min-width: 0; text-align: center; }
+.station .st-label { font: 700 11px/1 var(--body); letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
+.station .st-emoji { font-size: 34px; line-height: 1.1; height: 38px; }
+.station.active .st-emoji { animation: sizzle .35s ease-in-out infinite alternate; }
+@keyframes sizzle { from { transform: rotate(-4deg); } to { transform: rotate(4deg) translateY(-2px); } }
+.station .st-state { font-size: 12px; font-weight: 700; min-height: 18px; }
+.station.empty .st-emoji { opacity: .3; animation: none; }
+.st-perfect { border-color: var(--mint); } .st-perfect .st-state { color: var(--mint); }
+.st-under .st-state, .st-over .st-state { color: var(--saffron); }
+.st-burnt { border-color: var(--pom); } .st-burnt .st-state { color: var(--pom); }
+.st-burnt .st-emoji { filter: grayscale(1) brightness(.4); }
+.bar { position: relative; width: 100%; height: 10px; border-radius: 5px; background: var(--panel-2); overflow: hidden; }
+.bar i { position: absolute; top: 0; bottom: 0; }
+.bar .z-under, .bar .z-over { background: var(--saffron-dim); }
+.bar .z-perfect { background: var(--mint); opacity: .75; }
+.bar .z-burnt { background: var(--pom-dim); }
+.bar .needle { width: 3px; background: var(--cream); left: 0; box-shadow: 0 0 0 1px var(--char); }
+.station .btn { width: 100%; padding: 8px 4px; min-height: 38px; font-size: 13px; }
+
+.pantry { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.tile {
+  appearance: none; cursor: pointer; position: relative;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
+  color: var(--cream); font: 500 12px/1.15 var(--body);
+  padding: 10px 4px 8px; display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 0;
+  box-shadow: 0 3px 0 var(--char);
+}
+.tile .em { font-size: 30px; line-height: 1; }
+.tile .nm { overflow-wrap: anywhere; }
+.tile.mystery { border: 2px solid var(--saffron); }
+.tile.mystery::after { content: "MYSTERY"; position: absolute; top: -8px; left: 50%; transform: translateX(-50%); background: var(--saffron); color: var(--char); font: 800 9px/1 var(--body); letter-spacing: .1em; padding: 3px 5px; border-radius: 4px; }
+.tile.used { opacity: .28; box-shadow: none; }
+.tile:active:not(.used) { transform: translateY(2px); box-shadow: 0 1px 0 var(--char); }
+.shake { animation: shake .3s; }
+@keyframes shake { 25% { transform: translateX(-4px); } 75% { transform: translateX(4px); } }
+
+.pass { display: grid; grid-template-columns: auto 1fr; gap: 14px; align-items: center; }
+.pass-side { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.plate-list { display: flex; flex-wrap: wrap; gap: 6px; font-size: 12px; }
+.plate-list span { background: var(--panel); border-radius: 999px; padding: 3px 8px; }
+.plate-list .s-perfect { color: var(--mint); } .plate-list .s-burnt, .plate-list .s-raw { color: var(--pom); }
+.plate-list .s-under, .plate-list .s-over { color: var(--saffron); }
+
+/* The plate */
+.plate {
+  --size: 150px;
+  position: relative; width: var(--size); height: var(--size); max-width: 100%; flex: none; border-radius: 50%;
+  background: radial-gradient(circle, var(--plate) 0 54%, var(--plate-rim) 55% 58%, var(--plate) 59% 100%);
+  box-shadow: 0 8px 0 var(--char), inset 0 0 0 2px var(--plate-rim);
+}
+.plate .food {
+  position: absolute; left: 50%; top: 50%;
+  transform: translate(-50%, -50%) rotate(var(--a)) translateY(calc(var(--d) * -1)) rotate(calc(var(--a) * -1));
+  font-size: calc(var(--size) * .2); line-height: 1; background: none; border: 0; padding: 0; cursor: default;
+  filter: drop-shadow(0 2px 1px rgba(21, 13, 27, .35));
+}
+button.food { cursor: pointer; }
+.plate .s-burnt { filter: grayscale(1) brightness(.35); }
+.plate .empty-note { position: absolute; inset: 0; display: grid; place-items: center; color: var(--plate-rim); font: 700 12px var(--body); text-transform: uppercase; letter-spacing: .12em; }
+
+/* Bottom sheet */
+.sheet-backdrop { position: fixed; inset: 0; background: rgba(21, 13, 27, .55); z-index: 20; }
+.sheet {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 21;
+  background: var(--panel); border-top: 2px solid var(--saffron); border-radius: 18px 18px 0 0;
+  padding: 18px max(16px, env(safe-area-inset-right, 0px)) calc(18px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px));
+}
+.sheet-inner { max-width: 528px; margin: 0 auto; display: flex; flex-direction: column; gap: 10px; }
+.sheet-head { display: flex; align-items: center; gap: 12px; }
+.sheet-head .big-emoji { font-size: 40px; }
+.sheet-head small { color: var(--muted); display: block; }
+.sheet-options { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+
+/* Handoff */
+.handoff { text-align: center; align-items: center; padding-top: 40px; }
+.handoff .big-emoji { font-size: 72px; }
+
+/* Reveal */
+.versus { display: grid; grid-template-columns: 1fr auto 1fr; gap: 8px; align-items: start; }
+.versus > * { min-width: 0; }
+.contestant { display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center; }
+.contestant .plate { --size: 128px; }
+.contestant .who { font-weight: 800; font-size: 15px; margin-top: 6px; overflow-wrap: anywhere; }
+.contestant .dish { font-family: var(--display); font-size: 16px; line-height: 1.15; color: var(--saffron); overflow-wrap: anywhere; }
+.contestant .total { font: 800 30px/1 var(--body); font-variant-numeric: tabular-nums; }
+.contestant .total small { font-size: 14px; color: var(--muted); font-weight: 500; }
+.contestant.winner .plate { box-shadow: 0 8px 0 var(--char), 0 0 0 4px var(--saffron); }
+.vs { font-family: var(--display); font-size: 22px; color: var(--muted); padding-top: 50px; }
+.judge-rows { display: flex; flex-direction: column; gap: 12px; }
+.judge-row { display: flex; flex-direction: column; gap: 10px; transition: opacity .3s, transform .3s; }
+.judge-row.pending { opacity: .25; }
+.judge-row.pending .verdicts { visibility: hidden; }
+.judge-row.pop { animation: pop .35s ease-out; }
+@keyframes pop { from { transform: scale(.96); } to { transform: none; } }
+.verdicts { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.verdict { background: var(--char); border-radius: 10px; padding: 10px; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.verdict .score { font: 800 24px/1 var(--body); font-variant-numeric: tabular-nums; }
+.verdict .score small { font-size: 13px; color: var(--muted); font-weight: 500; }
+.verdict q { font-size: 13.5px; line-height: 1.35; color: var(--cream); quotes: "“" "”"; }
+.verdict .tag { font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .1em; overflow-wrap: anywhere; }
+.banner { text-align: center; padding: 18px; border-radius: var(--r); background: var(--saffron); color: var(--char); }
+.banner h2 { font-size: 34px; }
+.banner.tie { background: var(--steel); }
+.share-box { display: flex; flex-direction: column; gap: 10px; }
+.share-box textarea { width: 100%; min-height: 120px; resize: vertical; font: 13px/1.4 ui-monospace, Menlo, Consolas, monospace; color: var(--cream); background: var(--char); border: 1px solid var(--line); border-radius: 10px; padding: 10px; }
+.actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.actions .wide { grid-column: 1 / -1; }
+
+.toast { position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--cream); color: var(--char); font-weight: 700; padding: 10px 16px; border-radius: 999px; z-index: 30; box-shadow: 0 4px 0 var(--char); }
+.flash { position: fixed; inset: 0; display: grid; place-items: center; z-index: 25; pointer-events: none; font-family: var(--display); font-size: 96px; color: var(--pom); text-shadow: 0 6px 0 var(--char); animation: flash 1.1s ease-out forwards; }
+@keyframes flash { from { transform: scale(.6); opacity: 0; } 25% { transform: scale(1.1); opacity: 1; } to { opacity: 0; } }
+.confetti { position: fixed; top: -40px; z-index: 24; pointer-events: none; font-size: 26px; animation: fall linear forwards; }
+@keyframes fall { to { transform: translateY(110vh) rotate(540deg); } }
+
+@media (max-width: 400px) {
+  .brief-grid { grid-template-columns: 1fr; }
+  .verdicts { grid-template-columns: 1fr; }
+  .contestant .plate { --size: 108px; }
+  .timer { font-size: 38px; min-width: 104px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition: none !important; }
+}
+</style>
+</head>
+<body>
+<main class="app">
+
+  <!-- HOME -->
+  <section id="home" class="screen">
+    <header class="masthead">
+      <p class="eyebrow">A 90-second cooking duel</p>
+      <h1 class="logo">Kitchen<br><span>Duel</span></h1>
+      <p class="lede">One mystery ingredient. Three stoves. Three judges with strong opinions. Cook fast, plate pretty, and please don't serve raw chicken.</p>
+    </header>
+
+    <div id="challengeCard" class="challenge" hidden>
+      <p class="eyebrow" style="color: var(--char)">You've been challenged</p>
+      <h3 id="challengeTitle"></h3>
+      <p id="challengeText"></p>
+      <button id="btnAccept" class="btn" type="button">Accept the duel</button>
+    </div>
+
+    <div class="today panel" id="todayCard"></div>
+
+    <div class="menu">
+      <button id="btnDaily" class="btn primary" type="button">Daily Duel<span class="sub">Same kitchen for everyone today. Beat Robo-Chef.</span></button>
+      <button id="btnQuick" class="btn" type="button">Quick Duel<span class="sub">Random kitchen, then send the challenge to a friend.</span></button>
+      <button id="btnPass" class="btn" type="button">Pass &amp; Play<span class="sub">Two chefs, one phone.</span></button>
+    </div>
+
+    <form id="codeForm" class="code-form" autocomplete="off">
+      <label for="codeInput">Got a duel code from a friend?</label>
+      <div class="row">
+        <input id="codeInput" type="text" placeholder="Paste the code or link" spellcheck="false">
+        <button class="btn small" type="submit">Accept</button>
+      </div>
+      <p id="codeErr" class="err" hidden>That code didn't work. Ask your friend to copy it again.</p>
+    </form>
+
+    <details class="howto">
+      <summary>How to play</summary>
+      <ol>
+        <li>Read the brief: a theme, a mystery ingredient you must use, and three judges.</li>
+        <li>Tap ingredients to plate them raw or cook them in a pan or pot.</li>
+        <li>Pull food off the heat while the needle is in the green. Wait too long and it burns.</li>
+        <li>Serve before the clock hits zero. Food still on the stove when time runs out is lost.</li>
+        <li>The judges score your dish against your rival's, out of 30.</li>
+      </ol>
+    </details>
+  </section>
+
+  <!-- BRIEF -->
+  <section id="brief" class="screen" hidden>
+    <div>
+      <p class="eyebrow" id="briefMode"></p>
+      <h2>The brief</h2>
+    </div>
+    <p id="briefNote" class="muted" hidden></p>
+    <div class="brief-grid">
+      <div class="panel mystery-card">
+        <p class="card-label">Mystery ingredient</p>
+        <div class="big-emoji" id="briefMysteryEmoji"></div>
+        <strong id="briefMystery"></strong>
+        <p>Must be on the plate.</p>
+      </div>
+      <div class="panel theme-card">
+        <p class="card-label">Theme</p>
+        <strong id="briefTheme"></strong>
+        <p class="muted" id="briefThemeBlurb"></p>
+      </div>
+    </div>
+    <div class="panel">
+      <p class="card-label">Tonight's judges</p>
+      <div class="judge-list" id="briefJudges"></div>
+    </div>
+    <div class="names" id="nameFields"></div>
+    <button id="btnStart" class="btn primary" type="button">Start the 90-second clock</button>
+    <button id="btnBriefBack" class="btn small" type="button">Back</button>
+  </section>
+
+  <!-- KITCHEN -->
+  <section id="kitchen" class="screen" hidden>
+    <div class="hud">
+      <div class="timer" id="timer">1:30</div>
+      <div class="hud-chips" id="hudChips"></div>
+    </div>
+    <div class="stations" id="stations"></div>
+    <div>
+      <h3>Pantry</h3>
+      <p class="muted" style="font-size: 13px">Tap an ingredient to cook or plate it. Each one can be used once.</p>
+    </div>
+    <div class="pantry" id="pantry"></div>
+    <div class="panel pass">
+      <div id="kitchenPlate"></div>
+      <div class="pass-side">
+        <h3>The pass</h3>
+        <div class="plate-list" id="plateList"></div>
+        <p class="muted" style="font-size: 12px">Tap food on the plate to throw it out.</p>
+        <button id="btnServe" class="btn primary" type="button">Serve it</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- HANDOFF -->
+  <section id="handoff" class="screen handoff" hidden>
+    <div class="big-emoji">🙈</div>
+    <h2 id="handoffTitle"></h2>
+    <p class="muted">Same kitchen, same judges. No peeking at the first dish. It stays covered until the judges reveal.</p>
+    <button id="btnHandoff" class="btn primary" type="button"></button>
+  </section>
+
+  <!-- REVEAL -->
+  <section id="reveal" class="screen" hidden>
+    <div>
+      <p class="eyebrow" id="revealMode"></p>
+      <h2>The judges' table</h2>
+    </div>
+    <div class="versus" id="versus"></div>
+    <div class="judge-rows" id="judgeRows"></div>
+    <button id="btnSkip" class="btn small" type="button">Show all scores</button>
+    <div id="verdictArea" class="screen" hidden>
+      <div class="banner" id="banner"></div>
+      <div class="share-box panel" id="shareBox">
+        <h3 id="shareTitle">Share it</h3>
+        <p class="muted" id="shareHint"></p>
+        <textarea id="shareText" readonly aria-label="Text to share"></textarea>
+        <div class="actions">
+          <button id="btnCopy" class="btn primary wide" type="button">Copy</button>
+        </div>
+      </div>
+      <div class="actions">
+        <button id="btnAgain" class="btn" type="button">Play again</button>
+        <button id="btnHome" class="btn" type="button">Home</button>
+      </div>
+    </div>
+  </section>
+</main>
+
+<div id="sheetBackdrop" class="sheet-backdrop" hidden></div>
+<div id="sheet" class="sheet" hidden role="dialog" aria-modal="true" aria-labelledby="sheetName">
+  <div class="sheet-inner">
+    <div class="sheet-head">
+      <div class="big-emoji" id="sheetEmoji"></div>
+      <div><h3 id="sheetName"></h3><small id="sheetHint"></small></div>
+    </div>
+    <div class="sheet-options" id="sheetOptions"></div>
+    <button id="btnSheetCancel" class="btn small" type="button">Cancel</button>
+  </div>
+</div>
+<div id="toast" class="toast" hidden></div>
+
+<script>
+'use strict';
+
+// ---------- Tuning ----------
+const TOTAL = 90;        // seconds on the clock
+const PMAX = 1.6;        // cook progress cap (1 = perfect centre)
+const PLATE_MAX = 6;
+const LAUNCH = Date.UTC(2026, 9, 1); // Daily #1
+
+// ---------- Ingredients ----------
+// APPEND ONLY: duel codes store indexes into this list.
+// raw: quality when plated raw (0-1), or 'X' when raw is unsafe. pan/pot: seconds to perfect, 0 = not allowed.
+const ING = [
+  ['chicken', 'Chicken', '🍗', 'protein', 'brown', 'umami hearty fat', 'X', 8, 9],
+  ['steak', 'Steak', '🥩', 'protein', 'brown', 'umami hearty fat', 0.3, 6, 0],
+  ['fish', 'Fish', '🐟', 'protein', 'white', 'umami fresh', 0.4, 5, 6],
+  ['shrimp', 'Shrimp', '🦐', 'protein', 'pink', 'umami salty', 'X', 4, 4],
+  ['egg', 'Egg', '🥚', 'protein', 'yellow', 'umami fat hearty', 'X', 3, 6],
+  ['sardines', 'Sardines', '🥫', 'protein', 'white', 'salty umami', 1, 4, 0],
+  ['halloumi', 'Halloumi', '🧀', 'dairy', 'white', 'salty fat', 0.7, 4, 0],
+  ['yogurt', 'Yogurt', '🥛', 'dairy', 'white', 'sour fresh fat', 1, 0, 0],
+  ['butter', 'Butter', '🧈', 'dairy', 'yellow', 'fat salty', 0.6, 3, 0],
+  ['tomato', 'Tomato', '🍅', 'veg', 'red', 'sour fresh umami', 1, 5, 6],
+  ['onion', 'Onion', '🧅', 'veg', 'white', 'sweet umami', 0.6, 7, 6],
+  ['garlic', 'Garlic', '🧄', 'veg', 'white', 'umami spicy', 0.5, 4, 0],
+  ['chili', 'Chili', '🌶️', 'veg', 'red', 'spicy fresh', 1, 4, 0],
+  ['eggplant', 'Eggplant', '🍆', 'veg', 'purple', 'umami hearty', 0.2, 8, 0],
+  ['mushroom', 'Mushroom', '🍄', 'veg', 'brown', 'umami', 0.6, 6, 0],
+  ['cucumber', 'Cucumber', '🥒', 'veg', 'green', 'fresh crunch', 1, 0, 0],
+  ['lettuce', 'Lettuce', '🥬', 'veg', 'green', 'fresh crunch', 1, 0, 0],
+  ['avocado', 'Avocado', '🥑', 'veg', 'green', 'fat fresh', 1, 0, 0],
+  ['corn', 'Corn', '🌽', 'veg', 'yellow', 'sweet crunch', 0.5, 5, 6],
+  ['carrot', 'Carrot', '🥕', 'veg', 'orange', 'sweet crunch', 1, 6, 7],
+  ['olives', 'Olives', '🫒', 'veg', 'green', 'salty fat', 1, 0, 0],
+  ['potato', 'Potato', '🥔', 'carb', 'yellow', 'hearty', 0.1, 9, 9],
+  ['pasta', 'Pasta', '🍝', 'carb', 'yellow', 'hearty', 0.1, 0, 8],
+  ['rice', 'Rice', '🍚', 'carb', 'white', 'hearty', 0.05, 0, 9],
+  ['pita', 'Pita', '🫓', 'carb', 'brown', 'hearty crunch', 0.8, 3, 0],
+  ['chickpeas', 'Chickpeas', '🫘', 'carb', 'yellow', 'hearty umami', 0.8, 5, 6],
+  ['lemon', 'Lemon', '🍋', 'fruit', 'yellow', 'sour fresh', 1, 0, 0],
+  ['strawberry', 'Strawberry', '🍓', 'fruit', 'red', 'sweet sour fresh', 1, 0, 0],
+  ['banana', 'Banana', '🍌', 'fruit', 'yellow', 'sweet', 1, 4, 0],
+  ['pineapple', 'Pineapple', '🍍', 'fruit', 'yellow', 'sweet sour', 1, 5, 0],
+  ['apple', 'Apple', '🍎', 'fruit', 'red', 'sweet crunch fresh', 1, 5, 0],
+  ['coconut', 'Coconut', '🥥', 'fruit', 'white', 'sweet fat', 1, 0, 0],
+  ['dates', 'Dates', '🌴', 'fruit', 'brown', 'sweet', 1, 0, 0],
+  ['mint', 'Mint', '🌿', 'spice', 'green', 'fresh', 1, 0, 0],
+  ['zaatar', 'Za’atar', '🌱', 'spice', 'green', 'sour umami', 1, 0, 0],
+  ['tahini', 'Tahini', '🫙', 'spice', 'brown', 'fat umami', 1, 0, 0],
+  ['peanuts', 'Peanuts', '🥜', 'spice', 'brown', 'fat crunch salty', 1, 3, 0],
+  ['salt', 'Sea salt', '🧂', 'spice', 'white', 'salty', 1, 0, 0],
+  ['honey', 'Honey', '🍯', 'sweet', 'yellow', 'sweet', 1, 0, 0],
+  ['chocolate', 'Chocolate', '🍫', 'sweet', 'brown', 'sweet fat', 1, 0, 0],
+].map(([id, name, emoji, cat, color, tags, raw, pan, pot]) => ({ id, name, emoji, cat, color, tags: tags.split(' '), raw, pan, pot }));
+const IDX = Object.fromEntries(ING.map((x, i) => [x.id, i]));
+const ingById = id => ING[IDX[id]];
+
+const MYSTERY = ['chocolate', 'banana', 'pineapple', 'sardines', 'dates', 'coconut', 'peanuts', 'strawberry', 'tahini', 'honey', 'halloumi', 'eggplant'];
+
+// Canada's priority allergens, by the name a label would use
+const ALLERGEN = { peanuts: 'peanuts', tahini: 'sesame', shrimp: 'shellfish', fish: 'fish', sardines: 'fish', egg: 'egg', yogurt: 'milk', butter: 'milk', halloumi: 'milk', pasta: 'wheat', pita: 'wheat' };
+
+const pairKey = (a, b) => a < b ? a + '|' + b : b + '|' + a;
+const PAIRS = new Map();
+`tomato-chili tomato-garlic tomato-egg tomato-pasta tomato-cucumber tomato-halloumi tomato-onion tomato-olives tomato-mint
+ garlic-butter garlic-chicken garlic-shrimp garlic-pasta garlic-mushroom garlic-yogurt garlic-eggplant garlic-chickpeas garlic-steak
+ lemon-fish lemon-shrimp lemon-chicken lemon-avocado lemon-chickpeas lemon-tahini lemon-cucumber lemon-sardines
+ chocolate-chili chocolate-strawberry chocolate-banana chocolate-peanuts chocolate-coconut chocolate-dates
+ honey-yogurt honey-halloumi honey-banana honey-apple honey-chili honey-dates
+ mint-yogurt mint-cucumber mint-halloumi mint-strawberry mint-lemon
+ tahini-eggplant tahini-chickpeas tahini-dates tahini-honey
+ zaatar-pita zaatar-halloumi zaatar-egg zaatar-tomato zaatar-yogurt
+ egg-pita egg-avocado egg-potato egg-chili egg-onion egg-butter egg-salt
+ steak-mushroom steak-potato steak-onion steak-butter steak-salt
+ chicken-rice chicken-potato chicken-yogurt chicken-peanuts chicken-pineapple
+ rice-coconut rice-egg rice-shrimp rice-chickpeas
+ pasta-butter pasta-mushroom pasta-shrimp pasta-egg pasta-salt
+ potato-butter potato-salt potato-onion corn-butter corn-chili corn-salt
+ avocado-chili avocado-tomato avocado-shrimp avocado-corn
+ pineapple-chili pineapple-shrimp coconut-shrimp coconut-banana coconut-pineapple
+ strawberry-yogurt banana-peanuts apple-peanuts carrot-honey carrot-butter onion-mushroom eggplant-tomato eggplant-yogurt
+ fish-butter fish-chili fish-potato sardines-pita sardines-tomato olives-pita olives-halloumi
+ lettuce-cucumber lettuce-tomato lettuce-avocado chickpeas-chili cucumber-yogurt dates-yogurt`
+  .trim().split(/\s+/).forEach(k => PAIRS.set(pairKey(...k.split('-')), 1));
+`fish-chocolate fish-strawberry fish-banana fish-yogurt fish-halloumi sardines-chocolate sardines-strawberry sardines-banana sardines-honey sardines-coconut
+ garlic-chocolate garlic-strawberry garlic-banana onion-chocolate onion-strawberry chocolate-tomato chocolate-chicken chocolate-steak chocolate-shrimp
+ steak-strawberry steak-banana steak-yogurt olives-chocolate olives-strawberry olives-banana mushroom-strawberry mushroom-chocolate
+ peanuts-fish banana-tomato banana-onion pineapple-pasta zaatar-chocolate sardines-dates`
+  .trim().split(/\s+/).forEach(k => PAIRS.set(pairKey(...k.split('-')), -1.5));
+
+// Recognised dishes. The biggest match wins.
+const COMBOS = [
+  ['Shakshuka', 'egg tomato onion'], ['Shakshuka', 'egg tomato chili'],
+  ['Hummus', 'chickpeas tahini lemon'], ['Baba Ghanoush', 'eggplant tahini garlic'],
+  ['Fattoush', 'lettuce tomato pita'], ['Fattoush', 'cucumber tomato pita'],
+  ['Tzatziki', 'yogurt cucumber garlic'], ['Tzatziki', 'yogurt cucumber mint'],
+  ['Guacamole', 'avocado tomato lemon'], ['Guacamole', 'avocado chili lemon'],
+  ['Steak Frites', 'steak potato'], ['Steak au Champignons', 'steak mushroom'],
+  ['Garlic Butter Shrimp', 'shrimp garlic butter'], ['Coconut Shrimp', 'shrimp coconut'],
+  ['Chocolate Strawberries', 'chocolate strawberry'], ['Banana Split', 'banana chocolate peanuts'],
+  ["Man'oushe", 'pita zaatar'], ['Halloumi & Honey', 'halloumi honey'],
+  ['Chicken & Rice', 'chicken rice'], ['Carbonara-ish', 'pasta egg salt'],
+  ['Elote', 'corn butter chili'], ['Tropical Salsa', 'pineapple chili lemon'],
+].map(([name, ids]) => ({ name, ids: ids.split(' ') }));
+
+const THEMES = [
+  { name: 'Comfort Food', tags: ['hearty', 'fat'], blurb: 'Rich, filling, a hug on a plate.' },
+  { name: 'Fresh & Zingy', tags: ['fresh', 'sour'], blurb: 'Bright, sharp, wakes you up.' },
+  { name: 'Sweet Tooth', tags: ['sweet'], blurb: 'Dessert, or at least dessert-adjacent.' },
+  { name: 'Bring the Heat', tags: ['spicy'], blurb: 'Make somebody sweat.' },
+  { name: 'Umami Bomb', tags: ['umami', 'salty'], blurb: 'Deep, savoury, moreish.' },
+  { name: 'Crunch Time', tags: ['crunch'], blurb: 'Texture or bust. Searing counts.' },
+];
+
+// ---------- Judges ----------
+const JUDGES = [
+  {
+    id: 'teta', name: 'Teta Samira', emoji: '👵', role: 'Grandma. Has fed four generations.', likes: 'Big portions, real comfort',
+    w: { flavor: .35, cook: .2, size: .3, theme: .15 }, pen: { unsafe: 4, under: 2, burnt: 1, clash: 1 },
+    special: (f, fl) => f.size < .6 ? 'small' : null,
+    lines: {
+      empty: ['An empty plate? Habibi, sit down, I will make you something.'],
+      unsafe: ['Raw {raw}?! Are you trying to put me in the hospital?', 'Who taught you to cook? Not me. The {raw} is raw!'],
+      under: ['Put the {raw} back on the fire. Five more minutes. I will wait.'],
+      noMystery: ['You forgot the {mystery}. I forget things too, but I am 84.'],
+      burnt: ['It is black. Like my mood right now.', 'Did you cook it or cremate it?'],
+      clash: ['{a} with {b}? In my house? Never.'],
+      small: ['This is a snack, not a dish. Are you on a diet?', 'Two bites? Where is the rest of it?'],
+      combo: ['{combo}! Just like my mother made. Almost.', 'Ahh, {combo}. Now you are speaking my language.'],
+      great: ['Finally, someone who can cook. You can marry my grandson.', 'This tastes like home. I am crying a little.'],
+      good: ['Not bad. Needs more love. And more salt.', 'I would eat it. Then I would fix it.'],
+      bad: ['I will eat it to be polite. Never again.', 'Habibi... no.'],
+    },
+  },
+  {
+    id: 'marco', name: 'Chef Marco', emoji: '👨‍🍳', role: 'Two Michelin stars. Zero smiles.', likes: 'Perfect doneness, precision',
+    w: { cook: .5, flavor: .35, mystery: .15 }, pen: { unsafe: 5, under: 2, burnt: 1.5, clash: 1.5 },
+    special: () => null,
+    lines: {
+      empty: ['You served me air. Even air needs seasoning.'],
+      unsafe: ['Raw {raw}. Get out of my kitchen.', 'This is not cuisine. This is a liability.'],
+      under: ['Undercooked {raw}. I can still hear it.'],
+      noMystery: ['The brief had ONE rule. The {mystery}. Where is it?'],
+      burnt: ['Carbon is not a seasoning.', 'You burned it. On a 90-second clock. Impressive, in the wrong way.'],
+      clash: ['{a} and {b}? Who hurt you?', '{a} with {b}. I need to sit down.'],
+      combo: ['A clean {combo}. Classic. Respected.', '{combo}, executed properly. Fine. Good.'],
+      great: ['...Fine. That is actually excellent.', 'Precise. Balanced. I am almost smiling.'],
+      good: ['Competent. Competent is not memorable.', 'The idea is there. The execution is on vacation.'],
+      bad: ['This is a crime against the stove.', 'I have eaten better in airport lounges.'],
+    },
+  },
+  {
+    id: 'lina', name: 'Lina', emoji: '🤳', role: 'Food influencer, 2M followers.', likes: 'Colour, drama, nailing the theme',
+    w: { looks: .45, theme: .25, flavor: .2, speed: .1 }, pen: { unsafe: 3, under: 1.5, burnt: 1.5, clash: 1 },
+    special: (f, fl) => fl.colours >= 4 ? 'colourful' : fl.colours <= 1 ? 'dull' : null,
+    lines: {
+      empty: ['An empty plate is a bold concept. My followers will not get it.'],
+      unsafe: ['Can’t post this. My followers would get food poisoning just looking at it.'],
+      under: ['It looks cute but the {raw} is literally raw in the middle?'],
+      noMystery: ['Where’s the {mystery}? That was the whole plot twist!'],
+      burnt: ['It’s giving… charcoal. Not the aesthetic.', 'Burnt is not a filter.'],
+      clash: ['{a} plus {b} is a choice. A viral one, maybe. Not a good one.'],
+      colourful: ['The COLOURS. Posting this immediately.', 'So photogenic I forgot to taste it. Okay, tasted it. Still cute.'],
+      dull: ['Everything is one colour. My feed cannot take this.', 'This plate needs a glow-up.'],
+      combo: ['{combo}?? Iconic. Comfort content does numbers.'],
+      great: ['This is going on my stories AND my grid.', 'Chef’s kiss. I’m literally filming a chef’s kiss.'],
+      good: ['Cute! Not viral, but cute.', 'Solid. Needs one more colour for the thumbnail.'],
+      bad: ['I’m going to need a better angle. Or a better dish.', 'Unfollowing. Respectfully.'],
+    },
+  },
+  {
+    id: 'fuad', name: 'Uncle Fuad', emoji: '🌶️', role: 'Eats chilies like candy.', likes: 'Heat, then more heat',
+    w: { spice: .4, flavor: .3, size: .15, theme: .15 }, pen: { unsafe: 3, under: 2, burnt: 1, clash: 1 },
+    special: (f, fl, score) => !fl.hasSpicy ? 'mild' : score >= 6 ? 'spicy' : null,
+    lines: {
+      empty: ['Nothing on the plate. Even nothing could use some chili.'],
+      unsafe: ['I eat ghost peppers for breakfast and even I will not eat raw {raw}.'],
+      under: ['Spicy is good. Undercooked {raw} is not spicy, it is dangerous.'],
+      noMystery: ['No {mystery}? You had one job, my friend.'],
+      burnt: ['Smoky I like. Burnt? No, no, no.'],
+      clash: ['{a} and {b}... not even chili can save this.'],
+      spicy: ['Yes! I cannot feel my lips. Beautiful.', 'Finally some fire in this kitchen!'],
+      mild: ['Where is the heat? This is baby food.', 'No chili? I brought my own. I knew it.'],
+      combo: ['{combo}! Good. Next time, double the chili.'],
+      great: ['Big flavour. I respect it.', 'This one has courage.'],
+      good: ['Fine, fine. Could be braver.', 'Not bad. Not brave either.'],
+      bad: ['My tongue is bored.', 'I have had more excitement from plain rice.'],
+    },
+  },
+  {
+    id: 'nour', name: 'Dr. Nour', emoji: '💊', role: 'Pharmacist. Reads every label.', likes: 'Food safety, balance, something fresh',
+    w: { safety: .35, health: .3, flavor: .25, mystery: .1 }, pen: { unsafe: 6, under: 3, burnt: 1, clash: 1 },
+    special: (f, fl, score, r) => fl.sweet >= 3 ? 'sugar' : (fl.allergen && score >= 7 && r() < .5) ? 'allergen' : null,
+    lines: {
+      empty: ['Zero calories, zero risk. Also zero dish.'],
+      unsafe: ['Raw {raw}. I am not dispensing anything for what happens next.', 'That is a Salmonella delivery system, not a dish.'],
+      under: ['Undercooked {raw}? Cook it to a safe internal temperature, please.'],
+      noMystery: ['Missing the {mystery}. That is a non-adherence issue.'],
+      burnt: ['Charred food. Let’s keep the acrylamide to a minimum, please.'],
+      clash: ['{a} with {b}. That is a contraindicated combination.'],
+      sugar: ['That is a lot of sugar. Take with water and regret.', 'My glucose monitor just sent an alert.'],
+      allergen: ['Delicious. Just label the {allergen} next time. It is a priority allergen.', 'Lovely. Flag the {allergen} on the menu, please. Allergies are no joke.'],
+      combo: ['A well-made {combo}. Balanced formulation.'],
+      great: ['Safe, balanced, fresh. This is the dose I would recommend.', 'Excellent. Refills approved.'],
+      good: ['Reasonable. Add something fresh next time.', 'Generally well tolerated.'],
+      bad: ['Side effects may include disappointment.', 'I would hold this one pending review.'],
+    },
+  },
+];
+const judgeById = id => JUDGES.find(j => j.id === id);
+
+// ---------- Utils ----------
+function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+function hashStr(s) { let h = 2166136261; for (const c of String(s)) { h ^= c.codePointAt(0); h = Math.imul(h, 16777619); } return h >>> 0; }
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const $ = id => document.getElementById(id);
+function shuffle(arr, r) { const a = arr.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(r() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
+const store = {
+  get(k) { try { return localStorage.getItem('kd.' + k); } catch (e) { return null; } },
+  set(k, v) { try { localStorage.setItem('kd.' + k, v); } catch (e) { /* storage unavailable */ } },
+};
+function localDateKey(d = new Date()) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+function dailyNumber(d = new Date()) { return Math.floor((Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) - LAUNCH) / 864e5) + 1; }
+
+// ---------- Kitchen generation ----------
+function makeKitchen(seed, day = 0) {
+  const r = mulberry32(seed);
+  const mystery = MYSTERY[Math.floor(r() * MYSTERY.length)];
+  const taken = new Set([mystery]);
+  const take = (cats, n) => shuffle(ING.filter(x => cats.includes(x.cat) && !taken.has(x.id)), r).slice(0, n).map(x => { taken.add(x.id); return x.id; });
+  const pantry = shuffle([mystery, ...take(['protein'], 2), ...take(['carb'], 2), ...take(['veg', 'dairy'], 4), ...take(['fruit', 'spice', 'sweet'], 3)], r);
+  const theme = THEMES[Math.floor(r() * THEMES.length)];
+  const judges = shuffle(JUDGES.map(j => j.id), r).slice(0, 3);
+  return { seed, day, mystery, pantry, theme, judges };
+}
+
+// ---------- Dish evaluation ----------
+function describe(c) {
+  const ing = ING[c.i];
+  const unsafeIng = ing.raw === 'X';
+  let state, q;
+  if (c.m === 0 || c.p < 0.6) {
+    if (unsafeIng) { state = 'raw'; q = 0; }
+    else { q = ing.raw; state = q >= 0.5 ? 'fresh' : 'raw'; }
+  } else if (c.p < 0.85) { state = 'under'; q = unsafeIng ? 0.3 : 0.55; }
+  else if (c.p <= 1.15) { state = 'perfect'; q = 1; }
+  else if (c.p < 1.4) { state = 'over'; q = 0.55; }
+  else { state = 'burnt'; q = 0; }
+  const tags = new Set(ing.tags);
+  if (c.m === 1 && (state === 'perfect' || state === 'over') && ['protein', 'carb', 'dairy'].includes(ing.cat)) tags.add('crunch');
+  return {
+    ing, state, q, tags, m: c.m,
+    unsafe: unsafeIng && state === 'raw',
+    undercooked: unsafeIng && state === 'under',
+    burnt: state === 'burnt',
+    colour: state === 'burnt' ? 'black' : ing.color,
+  };
+}
+const STATE_LABEL = { fresh: 'Fresh', raw: 'Raw', under: 'Underdone', perfect: 'Perfect', over: 'Overdone', burnt: 'Burnt' };
+const CAT_RANK = { protein: 0, carb: 1, dairy: 2, veg: 3, fruit: 4, sweet: 5, spice: 6 };
+
+function findCombo(ids) {
+  let best = null;
+  for (const c of COMBOS) if (c.ids.every(id => ids.includes(id)) && (!best || c.ids.length > best.ids.length)) best = c;
+  return best;
+}
+function prefixFor(c) {
+  if (c.state === 'perfect') return c.m === 2 ? 'Simmered' : ['protein', 'dairy'].includes(c.ing.cat) ? 'Seared' : 'Golden';
+  return { fresh: 'Fresh', raw: c.unsafe ? 'Raw' : 'Uncooked', under: 'Barely-Cooked', over: 'Well-Done', burnt: 'Charred' }[c.state];
+}
+function dishName(comps, combo) {
+  if (!comps.length) return 'An Empty Plate';
+  let base, rest;
+  if (combo) {
+    base = (comps.some(c => c.burnt && combo.ids.includes(c.ing.id)) ? 'Charred ' : '') + combo.name;
+    rest = comps.filter(c => !combo.ids.includes(c.ing.id));
+  } else {
+    const main = comps.slice().sort((a, b) => CAT_RANK[a.ing.cat] - CAT_RANK[b.ing.cat])[0];
+    base = prefixFor(main) + ' ' + main.ing.name;
+    rest = comps.filter(c => c !== main);
+  }
+  if (!rest.length) return base;
+  let s = base + ' with ' + rest.slice(0, 2).map(c => c.ing.name).join(' & ');
+  if (rest.length > 2) s += ' + ' + (rest.length - 2) + ' more';
+  return s;
+}
+
+const SIZE = [0, .25, .55, .85, 1, 1, .9];
+const TASTE = ['sweet', 'salty', 'sour', 'spicy', 'umami', 'fat', 'fresh', 'crunch'];
+
+function evaluate(dish, k) {
+  const comps = dish.d.map(describe);
+  const n = comps.length;
+  const ids = comps.map(c => c.ing.id);
+  const f = {}, fl = { n, clashes: [], good: [] };
+  let pairSum = 0;
+  for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) {
+    const v = PAIRS.get(pairKey(ids[i], ids[j])) || 0;
+    if (v > 0) fl.good.push([comps[i].ing.name, comps[j].ing.name]);
+    if (v < 0) fl.clashes.push([comps[i].ing.name, comps[j].ing.name]);
+    pairSum += v;
+  }
+  const allTags = new Set();
+  comps.forEach(c => c.tags.forEach(t => allTags.add(t)));
+  const distinct = TASTE.filter(t => allTags.has(t)).length;
+  fl.combo = findCombo(ids);
+  f.flavor = 0.6 * clamp(0.3 + 0.18 * pairSum, 0, 1) + 0.4 * Math.min(1, distinct / 5);
+  if (fl.combo) f.flavor = Math.max(f.flavor, 0.92);
+  f.cook = n ? comps.reduce((s, c) => s + c.q, 0) / n : 0;
+  f.size = SIZE[Math.min(n, 6)];
+  fl.colours = new Set(comps.map(c => c.colour)).size;
+  f.looks = clamp((fl.colours - 1) / 3, 0, 1);
+  f.theme = Math.min(1, comps.filter(c => k.theme.tags.some(t => c.tags.has(t))).length / 2);
+  f.speed = clamp(dish.t / TOTAL, 0, 1);
+  const myst = comps.find(c => c.ing.id === k.mystery);
+  fl.noMystery = !myst;
+  f.mystery = myst ? myst.q : 0;
+  fl.hasSpicy = allTags.has('spicy');
+  f.spice = fl.hasSpicy ? 1 : 0.15;
+  fl.sweet = comps.filter(c => c.tags.has('sweet')).length;
+  const fat = comps.filter(c => c.tags.has('fat')).length;
+  f.health = (allTags.has('fresh') ? .45 : 0) + (fl.sweet <= 1 ? .3 : .1) + (fat <= 1 ? .25 : fat === 2 ? .15 : 0);
+  fl.unsafe = comps.some(c => c.unsafe);
+  fl.under = comps.filter(c => c.undercooked).length;
+  fl.burnt = comps.filter(c => c.burnt).length;
+  f.safety = fl.unsafe ? 0 : clamp(1 - .25 * fl.under - .2 * fl.burnt, 0, 1);
+  const allergenComp = comps.find(c => ALLERGEN[c.ing.id]);
+  fl.allergen = allergenComp ? ALLERGEN[allergenComp.ing.id] : null;
+  const riskComp = comps.find(c => c.unsafe) || comps.find(c => c.undercooked);
+  const name = dishName(comps, fl.combo);
+  const vars = {
+    dish: name, mystery: ingById(k.mystery).name.toLowerCase(),
+    raw: riskComp ? riskComp.ing.name.toLowerCase() : 'food',
+    a: fl.clashes[0] ? fl.clashes[0][0].toLowerCase() : '', b: fl.clashes[0] ? fl.clashes[0][1].toLowerCase() : '',
+    combo: fl.combo ? fl.combo.name : '', allergen: fl.allergen || '',
+  };
+  const sig = k.seed + ':' + dish.d.map(c => c.i + '.' + c.m + '.' + Math.round(c.p * 20)).join(',');
+  const judges = k.judges.map(id => scoreJudge(judgeById(id), f, fl, vars, sig));
+  return { comps, name, judges, total: judges.reduce((s, j) => s + j.score, 0), f, fl };
+}
+
+function scoreJudge(j, f, fl, vars, sig) {
+  const r = mulberry32(hashStr(sig + j.id));
+  let score;
+  if (!fl.n) score = 1;
+  else {
+    let raw = 0;
+    for (const [key, w] of Object.entries(j.w)) raw += w * f[key];
+    let s = 1 + 9 * Math.pow(clamp(raw, 0, 1), 1.5);
+    if (fl.unsafe) s -= j.pen.unsafe;
+    s -= fl.under * j.pen.under + fl.burnt * j.pen.burnt + fl.clashes.length * j.pen.clash;
+    if (fl.noMystery) s -= 2.5;
+    score = clamp(Math.round(s), 1, 10);
+  }
+  let key;
+  if (!fl.n) key = 'empty';
+  else if (fl.unsafe) key = 'unsafe';
+  else if (fl.noMystery) key = 'noMystery';
+  else if (fl.burnt) key = 'burnt';
+  else if (fl.under) key = 'under';
+  else if (fl.clashes.length && score <= 6) key = 'clash';
+  else key = j.special(f, fl, score, r) || (fl.combo && score >= 7 ? 'combo' : score >= 8 ? 'great' : score >= 5 ? 'good' : 'bad');
+  const pool = j.lines[key];
+  const line = pool[Math.floor(r() * pool.length)].replace(/\{(\w+)\}/g, (_, v) => vars[v] ?? '');
+  return { id: j.id, score, line: line.charAt(0).toUpperCase() + line.slice(1) };
+}
+
+// ---------- Robo-Chef ----------
+function botDish(k) {
+  const r = mulberry32((k.seed ^ 0x9e3779b9) >>> 0);
+  const ids = [k.mystery];
+  const want = 3 + Math.floor(r() * 2);
+  while (ids.length < want) {
+    let best = null, bv = -Infinity;
+    for (const id of k.pantry) {
+      if (ids.includes(id)) continue;
+      let v = r() * 1.2;
+      for (const x of ids) v += PAIRS.get(pairKey(id, x)) || 0;
+      if (k.theme.tags.some(t => ingById(id).tags.includes(t))) v += .5;
+      if (v > bv) { bv = v; best = id; }
+    }
+    ids.push(best);
+  }
+  const d = ids.map(id => {
+    const ing = ingById(id);
+    let m = 0;
+    if (ing.raw === 'X' || ing.raw < 0.8) m = ing.pan ? 1 : ing.pot ? 2 : 0;
+    else if (ing.pan && r() < 0.25) m = 1;
+    const roll = r();
+    const p = m === 0 ? 0 : roll < 0.55 ? 1 : roll < 0.75 ? 0.75 : roll < 0.92 ? 1.25 : 1.45;
+    return { i: IDX[id], m, p };
+  });
+  return { name: 'Robo-Chef', emoji: '🤖', d, t: 5 + Math.floor(r() * 25), bot: true };
+}
+
+// ---------- Duel codes ----------
+function encodeDuel(k, dish) {
+  const json = JSON.stringify([1, k.seed, dish.name, dish.d.map(c => [c.i, c.m, Math.round(c.p * 20)]), dish.t, k.day]);
+  return btoa(unescape(encodeURIComponent(json))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+function decodeDuel(code) {
+  try {
+    let s = String(code).trim();
+    const m = s.match(/[?&#]duel=([\w-]+)/);
+    if (m) s = m[1];
+    s = s.replace(/-/g, '+').replace(/_/g, '/');
+    const arr = JSON.parse(decodeURIComponent(escape(atob(s))));
+    if (!Array.isArray(arr) || arr[0] !== 1) return null;
+    const [, seed, name, d, t, day] = arr;
+    if (!Number.isInteger(seed) || !Array.isArray(d) || d.length > PLATE_MAX) return null;
+    const dish = {
+      name: String(name || 'A friend').slice(0, 16),
+      d: d.map(([i, mm, p]) => ({ i, m: mm, p: p / 20 })),
+      t: clamp(Number(t) || 0, 0, TOTAL),
+    };
+    if (dish.d.some(c => !ING[c.i] || ![0, 1, 2].includes(c.m) || !(c.p >= 0 && c.p <= PMAX))) return null;
+    return { kitchen: makeKitchen(seed >>> 0, Number(day) || 0), dish };
+  } catch (e) { return null; }
+}
+function duelLink(code) {
+  const base = location.origin && location.origin !== 'null' && /^https?:/.test(location.protocol) ? location.origin + location.pathname : '';
+  return base ? base + '?duel=' + code : '';
+}
+
+// ---------- Game state ----------
+let game = null;   // { mode, kitchen, players: [{name, d, t, bot, emoji}], turn, challengeCode }
+let pendingChallenge = null;
+
+function show(id) {
+  for (const s of document.querySelectorAll('.screen')) if (s.parentElement.classList.contains('app')) s.hidden = s.id !== id;
+  window.scrollTo(0, 0);
+}
+function toast(msg) {
+  const t = $('toast'); t.textContent = msg; t.hidden = false;
+  clearTimeout(toast.tm); toast.tm = setTimeout(() => { t.hidden = true; }, 1800);
+}
+
+// ---------- Home ----------
+function renderHome() {
+  const k = makeKitchen(hashStr('daily-' + localDateKey()), dailyNumber());
+  const best = store.get('daily-' + localDateKey());
+  $('todayCard').innerHTML = `
+    <div><p class="card-label">Today's kitchen · Daily #${k.day}</p><strong>${esc(k.theme.name)}</strong></div>
+    <div class="judges-mini" aria-label="Judges">${k.judges.map(id => judgeById(id).emoji).join('')}</div>
+    <p class="muted">${best ? 'Your best today: ' + esc(best) + '/30' : 'Mystery ingredient revealed when you start.'}</p>`;
+  if (pendingChallenge) {
+    const c = pendingChallenge;
+    $('challengeTitle').textContent = `Can you beat ${c.dish.name}?`;
+    $('challengeText').textContent = `Theme: ${c.kitchen.theme.name}. Same pantry, same judges, same mystery ingredient. Their score stays sealed until the judges reveal.`;
+    $('challengeCard').hidden = false;
+  } else $('challengeCard').hidden = true;
+}
+
+function startGame(mode, kitchen, opponent) {
+  game = { mode, kitchen, players: [], turn: 0, opponent };
+  renderBrief();
+  show('brief');
+}
+
+// ---------- Brief ----------
+function renderBrief() {
+  const k = game.kitchen, myst = ingById(k.mystery);
+  $('briefMode').textContent = game.mode === 'daily' ? `Daily Duel #${k.day} · vs Robo-Chef`
+    : game.mode === 'quick' ? 'Quick Duel · vs Robo-Chef'
+    : game.mode === 'pass' ? 'Pass & Play'
+    : `Duel · vs ${game.opponent.name}`;
+  $('briefNote').hidden = game.mode !== 'challenge';
+  if (game.mode === 'challenge') $('briefNote').textContent = `${game.opponent.name} has already cooked in this kitchen. Their dish stays covered until the reveal.`;
+  $('briefMysteryEmoji').textContent = myst.emoji;
+  $('briefMystery').textContent = myst.name;
+  $('briefTheme').textContent = k.theme.name;
+  $('briefThemeBlurb').textContent = k.theme.blurb;
+  $('briefJudges').innerHTML = k.judges.map(id => {
+    const j = judgeById(id);
+    return `<div class="judge-item"><div class="avatar">${j.emoji}</div><div><b>${esc(j.name)}</b><small>${esc(j.role)} Loves: ${esc(j.likes.toLowerCase())}.</small></div></div>`;
+  }).join('');
+  const saved = store.get('name') || '';
+  $('nameFields').innerHTML = game.mode === 'pass'
+    ? `<label for="name1">Chef 1<input id="name1" type="text" maxlength="16" value="${esc(saved || 'Chef 1')}"></label>
+       <label for="name2">Chef 2<input id="name2" type="text" maxlength="16" value="Chef 2"></label>`
+    : `<label for="name1">Your chef name<input id="name1" type="text" maxlength="16" placeholder="So your friends know who beat them" value="${esc(saved)}"></label>`;
+  $('btnStart').textContent = game.mode === 'pass' ? `${saved || 'Chef 1'}: start the clock` : 'Start the 90-second clock';
+}
+
+// ---------- Kitchen ----------
+let cook = null; // { timeLeft, stations, used:Set, plate:[], last, raf, done }
+
+function beginCooking() {
+  const k = game.kitchen;
+  cook = {
+    timeLeft: TOTAL, used: new Set(), plate: [], last: performance.now(), done: false,
+    stations: [{ kind: 1, label: 'Pan 1', item: null }, { kind: 1, label: 'Pan 2', item: null }, { kind: 2, label: 'Pot', item: null }],
+  };
+  const who = game.players.length < game.names.length ? game.names[game.players.length] : '';
+  $('hudChips').innerHTML = `
+    ${game.mode === 'pass' ? `<span class="chip cook">👩‍🍳 ${esc(who)}</span>` : ''}
+    <span class="chip mystery">${ingById(k.mystery).emoji} Must use ${esc(ingById(k.mystery).name)}</span>
+    <span class="chip">${esc(k.theme.name)}</span>`;
+  $('stations').innerHTML = cook.stations.map((s, n) => `
+    <div class="station empty" id="st${n}">
+      <span class="st-label">${s.label}</span>
+      <div class="st-emoji">${s.kind === 1 ? '🍳' : '🍲'}</div>
+      <div class="st-state">Empty</div>
+      <div class="bar" aria-hidden="true">
+        <i class="z-under" style="left:${.6 / PMAX * 100}%;width:${.25 / PMAX * 100}%"></i>
+        <i class="z-perfect" style="left:${.85 / PMAX * 100}%;width:${.3 / PMAX * 100}%"></i>
+        <i class="z-over" style="left:${1.15 / PMAX * 100}%;width:${.25 / PMAX * 100}%"></i>
+        <i class="z-burnt" style="left:${1.4 / PMAX * 100}%;width:${.2 / PMAX * 100}%"></i>
+        <i class="needle"></i>
+      </div>
+      <button class="btn small" type="button" data-take="${n}" disabled>Plate it</button>
+    </div>`).join('');
+  $('pantry').innerHTML = k.pantry.map(id => {
+    const ing = ingById(id);
+    return `<button type="button" class="tile${id === k.mystery ? ' mystery' : ''}" data-ing="${id}"><span class="em">${ing.emoji}</span><span class="nm">${esc(ing.name)}</span></button>`;
+  }).join('');
+  renderPlate();
+  renderTimer();
+  show('kitchen');
+  cook.raf = requestAnimationFrame(tick);
+}
+
+function tick(now) {
+  if (!cook || cook.done) return;
+  const dt = Math.min(0.1, (now - cook.last) / 1000);
+  cook.last = now;
+  cook.timeLeft = Math.max(0, cook.timeLeft - dt);
+  for (const s of cook.stations) if (s.item) s.item.p = Math.min(PMAX, s.item.p + dt * s.item.rate);
+  renderStations();
+  renderTimer();
+  if (cook.timeLeft <= 0) {
+    flash('Time!');
+    serve();
+    return;
+  }
+  cook.raf = requestAnimationFrame(tick);
+}
+
+function renderTimer() {
+  const t = Math.ceil(cook.timeLeft);
+  const el = $('timer');
+  el.textContent = Math.floor(t / 60) + ':' + String(t % 60).padStart(2, '0');
+  el.classList.toggle('urgent', t <= 10);
+}
+
+function renderStations() {
+  cook.stations.forEach((s, n) => {
+    const el = $('st' + n);
+    const btn = el.querySelector('button');
+    if (!s.item) {
+      if (!el.classList.contains('empty')) {
+        el.className = 'station empty';
+        el.querySelector('.st-emoji').textContent = s.kind === 1 ? '🍳' : '🍲';
+        el.querySelector('.st-state').textContent = 'Empty';
+        el.querySelector('.needle').style.left = '0';
+        btn.disabled = true;
+      }
+      return;
+    }
+    const d = describe({ i: s.item.i, m: s.kind, p: s.item.p });
+    const st = s.item.p < 0.6 ? 'raw' : d.state;
+    el.className = 'station active st-' + st;
+    el.querySelector('.st-emoji').textContent = ING[s.item.i].emoji + (st === 'burnt' ? '💨' : '');
+    el.querySelector('.st-state').textContent = st === 'raw' ? 'Cooking…' : STATE_LABEL[st] + (st === 'perfect' ? '!' : '');
+    el.querySelector('.needle').style.left = `calc(${s.item.p / PMAX * 100}% - 1.5px)`;
+    btn.disabled = false;
+  });
+}
+
+function plateHTML(comps, size, interactive) {
+  const n = comps.length;
+  const d = n === 1 ? 0 : size * (n <= 3 ? .2 : .26);
+  const foods = comps.map((c, i) => {
+    const a = (n === 1 ? 0 : i / n * 360) + 'deg';
+    const label = `${c.ing.name}, ${STATE_LABEL[c.state].toLowerCase()}`;
+    return interactive
+      ? `<button type="button" class="food s-${c.state}" style="--a:${a};--d:${d}px" data-remove="${i}" aria-label="Throw out ${esc(label)}" title="${esc(label)}">${c.ing.emoji}</button>`
+      : `<span class="food s-${c.state}" style="--a:${a};--d:${d}px" role="img" aria-label="${esc(label)}">${c.ing.emoji}</span>`;
+  }).join('');
+  return `<div class="plate" style="--size:${size}px">${foods || '<span class="empty-note">Empty</span>'}</div>`;
+}
+
+function renderPlate() {
+  const comps = cook.plate.map(describe);
+  $('kitchenPlate').innerHTML = plateHTML(comps, 140, true);
+  $('plateList').innerHTML = comps.length
+    ? comps.map(c => `<span class="s-${c.state}">${c.ing.emoji} ${STATE_LABEL[c.state]}</span>`).join('')
+    : '<span>Nothing plated yet</span>';
+  $('btnServe').textContent = comps.length ? `Serve it (${comps.length}/${PLATE_MAX})` : 'Serve an empty plate';
+  for (const tile of $('pantry').children) tile.classList.toggle('used', cook.used.has(tile.dataset.ing));
+}
+
+function openSheet(id) {
+  const ing = ingById(id);
+  const plateFull = cook.plate.length + cook.stations.filter(s => s.item).length >= PLATE_MAX;
+  const freePan = cook.stations.some(s => s.kind === 1 && !s.item);
+  const freePot = cook.stations.some(s => s.kind === 2 && !s.item);
+  $('sheetEmoji').textContent = ing.emoji;
+  $('sheetName').textContent = ing.name;
+  $('sheetHint').textContent = plateFull ? 'Your plate is full. Throw something out first.' : ing.raw === 'X' ? 'Not safe to serve raw.' : 'How do you want it?';
+  const opt = (m, label, sub, ok) => `<button type="button" class="btn small${m === 0 && ing.raw === 'X' ? ' danger' : ''}" data-method="${m}" ${ok && !plateFull ? '' : 'disabled'}>${label}<span class="sub">${sub}</span></button>`;
+  $('sheetOptions').innerHTML =
+    opt(0, 'Raw', 'straight on the plate', true) +
+    opt(1, 'Pan', ing.pan ? (freePan ? `~${ing.pan}s` : 'pans busy') : 'not for pans', ing.pan && freePan) +
+    opt(2, 'Pot', ing.pot ? (freePot ? `~${ing.pot}s` : 'pot busy') : 'not for pots', ing.pot && freePot);
+  $('sheetOptions').dataset.ing = id;
+  $('sheet').hidden = false;
+  $('sheetBackdrop').hidden = false;
+  const first = $('sheetOptions').querySelector('button:not(:disabled)');
+  (first || $('btnSheetCancel')).focus();
+}
+function closeSheet() { $('sheet').hidden = true; $('sheetBackdrop').hidden = true; }
+
+function chooseMethod(m) {
+  const id = $('sheetOptions').dataset.ing;
+  const ing = ingById(id);
+  closeSheet();
+  if (!cook || cook.done || cook.used.has(id)) return;
+  if (m === 0) cook.plate.push({ i: IDX[id], m: 0, p: 0 });
+  else {
+    const st = cook.stations.find(s => s.kind === m && !s.item);
+    if (!st) return;
+    st.item = { i: IDX[id], p: 0, rate: 1 / (m === 1 ? ing.pan : ing.pot) };
+  }
+  cook.used.add(id);
+  renderPlate();
+}
+
+function takeOff(n) {
+  const s = cook.stations[n];
+  if (!s.item) return;
+  if (cook.plate.length >= PLATE_MAX) { toast('Plate is full. Throw something out first.'); return; }
+  // Round now so a duel code re-scores exactly the same dish
+  cook.plate.push({ i: s.item.i, m: s.kind, p: Math.round(s.item.p * 20) / 20 });
+  s.item = null;
+  renderStations();
+  renderPlate();
+}
+
+function serve() {
+  if (!cook || cook.done) return;
+  cook.done = true;
+  cancelAnimationFrame(cook.raf);
+  closeSheet();
+  game.players.push({ name: game.names[game.players.length], d: cook.plate.slice(), t: Math.round(cook.timeLeft) });
+  if (game.mode === 'pass' && game.players.length === 1) {
+    $('handoffTitle').textContent = `Pass the phone to ${game.names[1]}`;
+    $('btnHandoff').textContent = `I'm ${game.names[1]}. Start my clock`;
+    setTimeout(() => show('handoff'), cook.timeLeft <= 0 ? 900 : 0);
+    return;
+  }
+  if (game.mode === 'challenge') game.players.push(game.opponent);
+  else if (game.mode !== 'pass') game.players.push(botDish(game.kitchen));
+  setTimeout(startReveal, cook.timeLeft <= 0 ? 900 : 0);
+}
+
+function flash(text) {
+  const el = document.createElement('div');
+  el.className = 'flash'; el.textContent = text;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 1200);
+}
+
+// ---------- Reveal ----------
+let revealTimers = [];
+function startReveal() {
+  const k = game.kitchen;
+  const [A, B] = game.players;
+  const ea = evaluate(A, k), eb = evaluate(B, k);
+  game.result = { ea, eb };
+  $('revealMode').textContent = $('briefMode').textContent;
+  const contestant = (p, e, side) => `
+    <div class="contestant" id="cont${side}">
+      ${plateHTML(e.comps, 128, false)}
+      <div class="who">${p.bot ? '🤖 ' : ''}${esc(p.name)}</div>
+      <div class="dish">${esc(e.name)}</div>
+      <div class="total" id="total${side}">?<small>/30</small></div>
+    </div>`;
+  $('versus').innerHTML = contestant(A, ea, 'A') + '<div class="vs">vs</div>' + contestant(B, eb, 'B');
+  $('judgeRows').innerHTML = k.judges.map((id, n) => {
+    const j = judgeById(id);
+    const v = (p, e) => `<div class="verdict"><span class="tag">${esc(p.name)}</span><span class="score">${e.judges[n].score}<small>/10</small></span><q>${esc(e.judges[n].line)}</q></div>`;
+    return `<div class="panel judge-row pending" id="jr${n}">
+      <div class="judge-item"><div class="avatar">${j.emoji}</div><div><b>${esc(j.name)}</b><small>${esc(j.role)}</small></div></div>
+      <div class="verdicts">${v(A, ea)}${v(B, eb)}</div>
+    </div>`;
+  }).join('');
+  $('verdictArea').hidden = true;
+  $('btnSkip').hidden = false;
+  show('reveal');
+  revealTimers.forEach(clearTimeout);
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (reduced) { finishReveal(); return; }
+  revealTimers = k.judges.map((_, n) => setTimeout(() => revealJudge(n), 900 + n * 1600));
+  revealTimers.push(setTimeout(finishReveal, 900 + k.judges.length * 1600));
+}
+function revealJudge(n) {
+  const el = $('jr' + n);
+  if (!el || !el.classList.contains('pending')) return;
+  el.classList.remove('pending');
+  el.classList.add('pop');
+}
+function finishReveal() {
+  revealTimers.forEach(clearTimeout);
+  revealTimers = [];
+  if (!game || !game.result) return;
+  game.kitchen.judges.forEach((_, n) => revealJudge(n));
+  $('btnSkip').hidden = true;
+  const { ea, eb } = game.result;
+  const [A, B] = game.players;
+  $('totalA').innerHTML = `${ea.total}<small>/30</small>`;
+  $('totalB').innerHTML = `${eb.total}<small>/30</small>`;
+  const tie = ea.total === eb.total;
+  const aWins = ea.total > eb.total;
+  $('contA').classList.toggle('winner', !tie && aWins);
+  $('contB').classList.toggle('winner', !tie && !aWins);
+  const winner = aWins ? A : B;
+  const banner = $('banner');
+  banner.className = 'banner' + (tie ? ' tie' : '');
+  banner.innerHTML = tie
+    ? '<h2>Dead heat</h2><p>The judges demand a rematch.</p>'
+    : `<h2>${esc(winner.name)} wins</h2><p>by ${Math.abs(ea.total - eb.total)} point${Math.abs(ea.total - eb.total) === 1 ? '' : 's'}.</p>`;
+  if (!tie && !winner.bot) confetti();
+  if (game.mode === 'daily') {
+    const key = 'daily-' + localDateKey();
+    const prev = Number(store.get(key) || 0);
+    if (ea.total > prev) store.set(key, String(ea.total));
+  }
+  buildShare();
+  $('verdictArea').hidden = false;
+}
+
+function scoreEmoji(s) { return s >= 9 ? '🔥' : s >= 7 ? '⭐' : s >= 5 ? '👍' : s >= 3 ? '😬' : '💀'; }
+
+function buildShare() {
+  const k = game.kitchen;
+  const [A, B] = game.players;
+  const { ea, eb } = game.result;
+  const judgesLine = e => k.judges.map((id, n) => judgeById(id).emoji + ' ' + e.judges[n].score).join('  ');
+  const title = game.mode === 'daily' ? `Kitchen Duel · Daily #${k.day}` : 'Kitchen Duel';
+  let text, hint;
+  if (game.mode === 'pass') {
+    text = `🍳 ${title}\n${A.name}: "${ea.name}" ${ea.total}/30\n${B.name}: "${eb.name}" ${eb.total}/30\n${ea.total === eb.total ? 'Dead heat.' : (ea.total > eb.total ? A.name : B.name) + ' wins.'}`;
+    hint = 'Brag about it in the group chat.';
+    $('shareTitle').textContent = 'Share the result';
+  } else {
+    const code = encodeDuel(k, A);
+    const link = duelLink(code);
+    const vs = B.bot ? 'Robo-Chef' : B.name;
+    const outcome = ea.total > eb.total ? `Beat ${vs} (${eb.total})` : ea.total < eb.total ? `Lost to ${vs} (${eb.total})` : `Tied ${vs}`;
+    text = `🍳 ${title}\nTheme: ${k.theme.name} · Mystery: ${ingById(k.mystery).emoji}\n"${ea.name}"\n${judgesLine(ea)}  →  ${ea.total}/30 ${scoreEmoji(Math.round(ea.total / 3))}\n${outcome}\n\nCan you beat my dish? ${link || 'Duel code: ' + code}`;
+    hint = link
+      ? 'Your friend gets the same kitchen and judges. Your score stays hidden until their reveal.'
+      : 'Your friend pastes the duel code on the home screen to get the same kitchen.';
+    $('shareTitle').textContent = game.mode === 'challenge' ? `Challenge ${B.name} back` : 'Challenge a friend';
+  }
+  $('shareText').value = text;
+  $('shareHint').textContent = hint;
+}
+
+function confetti() {
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const bits = ['🍋', '🌶️', '🍅', '⭐', '🧄', '🍓', '🔥'];
+  for (let n = 0; n < 28; n++) {
+    const el = document.createElement('span');
+    el.className = 'confetti';
+    el.textContent = bits[n % bits.length];
+    el.style.left = Math.random() * 100 + 'vw';
+    el.style.animationDuration = 1.8 + Math.random() * 1.6 + 's';
+    el.style.animationDelay = Math.random() * .6 + 's';
+    document.body.appendChild(el);
+    setTimeout(() => el.remove(), 4200);
+  }
+}
+
+// ---------- Wiring ----------
+function readNames() {
+  const n1 = ($('name1').value.trim() || (game.mode === 'pass' ? 'Chef 1' : 'You')).slice(0, 16);
+  if ($('name1').value.trim()) store.set('name', n1);
+  game.names = game.mode === 'pass' ? [n1, ($('name2').value.trim() || 'Chef 2').slice(0, 16)] : [n1];
+}
+
+$('btnDaily').onclick = () => startGame('daily', makeKitchen(hashStr('daily-' + localDateKey()), dailyNumber()));
+$('btnQuick').onclick = () => startGame('quick', makeKitchen((Math.random() * 2 ** 32) >>> 0));
+$('btnPass').onclick = () => startGame('pass', makeKitchen((Math.random() * 2 ** 32) >>> 0));
+$('btnAccept').onclick = () => { if (pendingChallenge) startGame('challenge', pendingChallenge.kitchen, pendingChallenge.dish); };
+$('codeForm').addEventListener('submit', e => {
+  e.preventDefault();
+  const c = decodeDuel($('codeInput').value);
+  $('codeErr').hidden = !!c;
+  if (c) { pendingChallenge = c; startGame('challenge', c.kitchen, c.dish); }
+});
+$('btnBriefBack').onclick = () => { renderHome(); show('home'); };
+$('btnStart').onclick = () => { readNames(); beginCooking(); };
+$('btnHandoff').onclick = () => beginCooking();
+$('btnServe').onclick = () => serve();
+$('pantry').addEventListener('click', e => {
+  const tile = e.target.closest('[data-ing]');
+  if (!tile || !cook || cook.done) return;
+  if (cook.used.has(tile.dataset.ing)) { tile.classList.remove('shake'); void tile.offsetWidth; tile.classList.add('shake'); return; }
+  openSheet(tile.dataset.ing);
+});
+$('stations').addEventListener('click', e => {
+  const b = e.target.closest('[data-take]');
+  if (b && cook && !cook.done) takeOff(Number(b.dataset.take));
+});
+$('kitchenPlate').addEventListener('click', e => {
+  const b = e.target.closest('[data-remove]');
+  if (!b || !cook || cook.done) return;
+  const gone = cook.plate.splice(Number(b.dataset.remove), 1)[0];
+  if (gone) toast(`${ING[gone.i].name} went in the bin.`);
+  renderPlate();
+});
+$('sheetOptions').addEventListener('click', e => {
+  const b = e.target.closest('[data-method]');
+  if (b && !b.disabled) chooseMethod(Number(b.dataset.method));
+});
+$('btnSheetCancel').onclick = closeSheet;
+$('sheetBackdrop').onclick = closeSheet;
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('sheet').hidden) closeSheet(); });
+$('btnSkip').onclick = finishReveal;
+$('btnCopy').onclick = () => {
+  const text = $('shareText').value;
+  const fallback = () => { $('shareText').focus(); $('shareText').select(); toast('Selected. Copy it from here.'); };
+  try { navigator.clipboard.writeText(text).then(() => toast('Copied. Paste it anywhere.'), fallback); } catch (e) { fallback(); }
+};
+$('btnAgain').onclick = () => {
+  const m = game.mode;
+  if (m === 'daily') $('btnDaily').onclick();
+  else if (m === 'pass') $('btnPass').onclick();
+  else $('btnQuick').onclick();
+};
+$('btnHome').onclick = () => { renderHome(); show('home'); };
+
+// Incoming duel link
+(function boot() {
+  const m = location.search.match(/[?&]duel=([\w-]+)/);
+  if (m) pendingChallenge = decodeDuel(m[1]);
+  renderHome();
+  show('home');
+})();
+</script>
+</body>
+</html>
