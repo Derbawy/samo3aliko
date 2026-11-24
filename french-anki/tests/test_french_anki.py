@@ -35,9 +35,15 @@ class FakeTTS:
     def __init__(self):
         self.calls = []
 
-    def __call__(self, text, slow, dest):
+    def __call__(self, text, slow, dest, voice=None):
         self.calls.append((text, slow))
+        self.voices = getattr(self, "voices", []) + [voice]
         Path(dest).write_bytes(b"ID3fake-mp3:" + text.encode() + (b":slow" if slow else b""))
+
+
+def fname(text, slow):
+    """Expected media filename for a chunk's audio."""
+    return fa.audio_filename(text, slow, fa.voice_for(text, text))
 
 
 @pytest.fixture
@@ -56,7 +62,7 @@ def work(tmp_path):
 
 
 def do_build(w, **kw):
-    cache = fa.AudioCache(w["media"], synthesize=w["tts"], pause=0)
+    cache = fa.AudioCache(w["media"], synthesize=w["tts"], fallback=None, pause=0)
     return fa.build(w["chunks"], w["pairs"], w["out"], audio=cache, log=lambda *_: None, **kw)
 
 
@@ -134,7 +140,7 @@ def test_audio_cached_and_not_regenerated(work):
 
 def test_empty_cached_file_is_regenerated(work):
     do_build(work)
-    victim = work["media"] / fa.audio_filename("Ça marche.", slow=False)
+    victim = work["media"] / fname("Ça marche.", slow=False)
     victim.write_bytes(b"")
     n = len(work["tts"].calls)
     do_build(work)
@@ -144,7 +150,7 @@ def test_empty_cached_file_is_regenerated(work):
 def test_audio_failure_aborts_without_writing(work):
     def broken(text, slow, dest):
         raise ConnectionError("offline")
-    cache = fa.AudioCache(work["media"], synthesize=broken, pause=0, retries=1)
+    cache = fa.AudioCache(work["media"], synthesize=broken, fallback=broken, pause=0, retries=1)
     with pytest.raises(SystemExit):
         fa.build(work["chunks"], work["pairs"], work["out"], audio=cache, log=lambda *_: None)
     assert not work["out"].exists()
@@ -185,8 +191,8 @@ def test_card_faces(work):
         listen_q = cards["1 Listen"].question()
         assert "Ça marche" not in listen_q and "Sounds good" not in listen_q  # no text on LISTEN front
         assert "Écoutez et répétez" in listen_q and "frsPlay('frs_" in listen_q
-        slow_name = fa.audio_filename("Ça marche.", slow=True)
-        normal_name = fa.audio_filename("Ça marche.", slow=False)
+        slow_name = fname("Ça marche.", slow=True)
+        normal_name = fname("Ça marche.", slow=False)
         q_sounds = [t.filename for t in cards["1 Listen"].question_av_tags()]
         assert q_sounds == [slow_name], "only the SLOW audio autoplays on the LISTEN front"
         assert "Sounds good" in cards["1 Listen"].answer() and "Ça marche." in cards["1 Listen"].answer()
@@ -203,8 +209,9 @@ def test_card_faces(work):
 
         pid = col.find_notes('"Word1:sous"')[0]
         p1, p2 = sorted(col.get_note(pid).cards(), key=lambda c: c.ord)
-        assert [t.filename for t in p1.question_av_tags()] == [fa.audio_filename("sous", False)]
-        assert [t.filename for t in p2.question_av_tags()] == [fa.audio_filename("sur", False)]
+        pv = fa.pair_voice("sous", "sur")
+        assert [t.filename for t in p1.question_av_tags()] == [fa.audio_filename("sous", False, pv)]
+        assert [t.filename for t in p2.question_av_tags()] == [fa.audio_filename("sur", False, pv)]
         assert "under" in p1.answer() and "on" in p1.answer() and "ou vs u" in p1.answer()
     finally:
         col.close()
@@ -312,3 +319,51 @@ def test_design_change_updates_note_type_in_place(work, monkeypatch):
         assert col.note_count() == 7
     finally:
         col.close()
+
+
+# ---------------------------------------------------------------- voices
+NATURAL = {v for v, _ in fa.SPEAKERS}
+FRENCH_ONLY = {v for _, v in fa.SPEAKERS}
+
+
+def test_voice_is_stable_per_chunk_and_both_speakers_are_used():
+    texts = [l.split(";")[0].strip() for l in TODAY] + [f"Phrase numéro {i} pour tester." for i in range(20)]
+    voices = [fa.voice_for(t, t) for t in texts]
+    assert voices == [fa.voice_for(t, t) for t in texts], "same text must always get the same voice"
+    long_voices = {fa.voice_for(t, t) for t in texts if len(t.split()) > 2}
+    assert long_voices == NATURAL, "a mix of the two chosen natural voices"
+
+
+def test_short_texts_use_french_only_voice_of_same_speaker():
+    v_long = fa.voice_for("Ça marche bien aujourd'hui.", "Ça marche bien aujourd'hui.")
+    v_short = fa.voice_for("Ça marche bien aujourd'hui.", "Ça marche.")
+    assert v_long in NATURAL and v_short in FRENCH_ONLY
+    assert fa.SPEAKERS.index(next(s for s in fa.SPEAKERS if v_long in s)) == \
+        fa.SPEAKERS.index(next(s for s in fa.SPEAKERS if v_short in s)), "same gender/speaker"
+
+
+def test_pair_words_share_one_french_only_voice(work):
+    do_build(work)
+    pv = fa.pair_voice("pain", "bain")
+    assert pv in FRENCH_ONLY
+    assert (work["media"] / fa.audio_filename("pain", False, pv)).exists()
+    assert (work["media"] / fa.audio_filename("bain", False, pv)).exists()
+
+
+def test_slow_audio_uses_same_voice(work):
+    do_build(work)
+    t = "Avez-vous des allergies à des médicaments ?"
+    v = fa.voice_for(t, t)
+    assert (work["media"] / fa.audio_filename(t, True, v)).exists()
+    assert fa.audio_filename(t, True, v) != fa.audio_filename(t, False, v)
+
+
+def test_falls_back_to_gtts_when_neural_voice_fails(work):
+    def broken(text, slow, dest, voice=None):
+        raise ConnectionError("service down")
+    fb = FakeTTS()
+    cache = fa.AudioCache(work["media"], synthesize=broken, fallback=fb, pause=0, retries=1)
+    res = fa.build(work["chunks"], work["pairs"], work["out"], audio=cache, log=lambda *_: None)
+    assert work["out"].exists() and not res.audio_failed
+    assert len(res.audio_fallbacks) == len(fb.calls) > 0
+    assert (work["media"] / fa.audio_filename("Ça marche.", False, fa.GTTS)).exists()

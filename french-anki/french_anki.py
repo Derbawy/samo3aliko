@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""French Anki pipeline: chunks_master.csv -> Francais_Sherif.apkg (with France-French audio).
+"""French Anki pipeline: chunks_master.csv -> Francais_Sherif.apkg (with France-French neural audio).
 
 Usage
 -----
@@ -86,11 +86,24 @@ TAG_ALIASES = {
 SPECIAL_TAGS = {"shadow"}  # tags that change card generation but not the deck
 
 # --------------------------------------------------------------------------------------
-# Audio settings (France French). Changing these changes the cache key -> audio regenerates.
+# Audio settings. Changing these changes the cache key -> audio regenerates.
 # --------------------------------------------------------------------------------------
+# Main engine: Microsoft neural voices via edge-tts (France French, free, no key).
+# Each chunk gets ONE fixed speaker (picked from a hash of its text), so you hear a mix of
+# a woman's and a man's voice across the deck, but each card always sounds the same.
+# Each speaker = (multilingual "natural" voice, French-only voice of the same gender).
+# The French-only voice is used for very short texts (single words in minimal pairs, 1-2
+# word chunks), where a multilingual voice might read "pain" as the English word.
+SPEAKERS = [
+    ("fr-FR-VivienneMultilingualNeural", "fr-FR-DeniseNeural"),  # female
+    ("fr-FR-RemyMultilingualNeural", "fr-FR-HenriNeural"),       # male
+]
+SHORT_TEXT_MAX_WORDS = 2
+EDGE_SLOW_RATE = "-30%"  # slow audio = the same natural voice at 70% speed
+# Fallback engine if Microsoft's service fails: gTTS (Google, France French).
 TTS_LANG = "fr"
 TTS_TLD = "fr"
-TTS_PAUSE_SECONDS = 0.4  # be polite to Google between requests
+TTS_PAUSE_SECONDS = 0.4  # be polite to the TTS services between requests
 TTS_RETRIES = 4
 
 
@@ -312,55 +325,113 @@ def add_pairs(lines: Iterable[str], path: Path = PAIRS_CSV, today: str | None = 
 
 
 # ======================================================================================
-# Audio (gTTS, France French) with a content-addressed cache
+# Audio (edge-tts neural voices, gTTS fallback) with a content-addressed cache
 # ======================================================================================
-def audio_filename(text: str, slow: bool) -> str:
-    key = f"{normalize_text(text)}|lang={TTS_LANG}|tld={TTS_TLD}|slow={slow}"
+GTTS = "gtts"
+
+
+def voice_for(speaker_key: str, text: str) -> str:
+    """Stable voice for a note: the speaker comes from speaker_key, the variant from text length."""
+    digest = hashlib.sha1(normalize_text(speaker_key).encode("utf-8")).digest()
+    natural, french_only = SPEAKERS[digest[0] % len(SPEAKERS)]
+    return french_only if len(normalize_text(text).split()) <= SHORT_TEXT_MAX_WORDS else natural
+
+
+def pair_voice(word1: str, word2: str) -> str:
+    """One French-only voice for both words of a minimal pair (single words -> no language mix-ups)."""
+    return voice_for(f"{normalize_text(word1)}|{normalize_text(word2)}", "x")
+
+
+def audio_filename(text: str, slow: bool, voice: str = GTTS) -> str:
+    if voice == GTTS:  # (key format kept from v1 so the old gTTS cache stays valid)
+        key = f"{normalize_text(text)}|lang={TTS_LANG}|tld={TTS_TLD}|slow={slow}"
+    else:
+        key = f"{normalize_text(text)}|edge|{voice}|rate={EDGE_SLOW_RATE if slow else '+0%'}"
     digest = hashlib.sha1(key.encode("utf-8")).hexdigest()[:16]
     return f"frs_{digest}_{'s' if slow else 'n'}.mp3"
 
 
-def gtts_synthesize(text: str, slow: bool, dest: Path) -> None:
-    from gtts import gTTS  # imported lazily so tests / cached builds don't need the network
+def edge_synthesize(text: str, slow: bool, dest: Path, voice: str) -> None:
+    import asyncio
+
+    import edge_tts  # imported lazily so tests / cached builds don't need the network
+
+    proxy = os.environ.get("HTTPS_PROXY") or os.environ.get("https_proxy") or None
+    comm = edge_tts.Communicate(text, voice, rate=EDGE_SLOW_RATE if slow else "+0%", proxy=proxy)
+    asyncio.run(comm.save(str(dest)))
+
+
+def gtts_synthesize(text: str, slow: bool, dest: Path, voice: str = GTTS) -> None:
+    from gtts import gTTS
 
     gTTS(text=text, lang=TTS_LANG, tld=TTS_TLD, slow=slow).save(str(dest))
 
 
 class AudioCache:
+    """Generates each MP3 once and caches it under media/ (filename = hash of text + voice + speed).
+
+    Tries the neural voice first; if that fails, falls back to gTTS (and retries the neural
+    voice on the next build, so the deck upgrades itself once the service is back).
+    """
+
     def __init__(self, media_dir: Path = MEDIA_DIR,
-                 synthesize: Callable[[str, bool, Path], None] = gtts_synthesize,
+                 synthesize: Callable[..., None] = edge_synthesize,
+                 fallback: Callable[..., None] | None = gtts_synthesize,
                  pause: float = TTS_PAUSE_SECONDS, retries: int = TTS_RETRIES):
         self.media_dir = media_dir
         self.synthesize = synthesize
+        self.fallback = fallback
         self.pause = pause
         self.retries = retries
         self.generated = 0
         self.cached = 0
+        self.fallbacks: list[str] = []
         self.failed: list[str] = []
+        self.voices_used: dict[str, int] = {}
         media_dir.mkdir(parents=True, exist_ok=True)
 
-    def get(self, text: str, slow: bool) -> Path | None:
-        """Return the path to the MP3 for text, generating it once. None if generation failed."""
-        path = self.media_dir / audio_filename(text, slow)
-        if path.exists() and path.stat().st_size > 0:
-            self.cached += 1
-            return path
+    def _make(self, fn, text: str, slow: bool, voice: str, path: Path) -> str | None:
+        """Generate into path with retries. Returns None on success, else the last error."""
         tmp = path.with_suffix(".part")
         for attempt in range(1, self.retries + 1):
             try:
-                self.synthesize(text, slow, tmp)
+                fn(text, slow, tmp, voice)
                 if not tmp.exists() or tmp.stat().st_size == 0:
                     raise RuntimeError("empty audio file")
                 tmp.replace(path)  # atomic: never leaves a half-written MP3 in the cache
                 self.generated += 1
                 time.sleep(self.pause)
-                return path
-            except Exception as e:  # network errors, rate limits (429), ...
+                return None
+            except Exception as e:  # network errors, rate limits, ...
+                tmp.unlink(missing_ok=True)
                 if attempt == self.retries:
-                    self.failed.append(f"{text!r} (slow={slow}): {e}")
-                    tmp.unlink(missing_ok=True)
-                    return None
+                    return f"{type(e).__name__}: {e}"
                 time.sleep(self.pause * 2 ** attempt)
+        return "unknown error"
+
+    def _cached(self, path: Path) -> bool:
+        if path.exists() and path.stat().st_size > 0:
+            self.cached += 1
+            return True
+        return False
+
+    def get(self, text: str, slow: bool, voice: str = GTTS) -> Path | None:
+        """Return the MP3 for text in the given voice, generating it once. None if all engines failed."""
+        path = self.media_dir / audio_filename(text, slow, voice)
+        if self._cached(path):
+            self.voices_used[voice] = self.voices_used.get(voice, 0) + 1
+            return path
+        err = self._make(self.synthesize, text, slow, voice, path)
+        if err is None:
+            self.voices_used[voice] = self.voices_used.get(voice, 0) + 1
+            return path
+        if self.fallback is not None and voice != GTTS:
+            fb = self.media_dir / audio_filename(text, slow, GTTS)
+            if self._cached(fb) or self._make(self.fallback, text, slow, GTTS, fb) is None:
+                self.fallbacks.append(f"{text!r} (slow={slow}, {voice}): {err}")
+                self.voices_used[GTTS] = self.voices_used.get(GTTS, 0) + 1
+                return fb
+        self.failed.append(f"{text!r} (slow={slow}): {err}")
         return None
 
 
@@ -535,6 +606,8 @@ class BuildResult:
     audio_generated: int = 0
     audio_cached: int = 0
     audio_failed: list = field(default_factory=list)
+    audio_fallbacks: list = field(default_factory=list)
+    voices_used: dict = field(default_factory=dict)
 
 
 def _html(text: str) -> str:
@@ -554,10 +627,11 @@ def build(chunks_csv: Path = CHUNKS_CSV, pairs_csv: Path = PAIRS_CSV, out: Path 
     res = BuildResult(apkg=out, cards={"Listen": 0, "Speak": 0, "Shadow": 0, "Paire": 0})
 
     total = 2 * len(chunks) + 2 * len(pairs)
-    log(f"Audio: checking {total} files (new ones are downloaded from Google TTS, France voice)...")
+    log(f"Audio: checking {total} files (new ones are generated with France-French neural voices)...")
 
     for i, ch in enumerate(chunks):
-        normal, slow = audio.get(ch.french, slow=False), audio.get(ch.french, slow=True)
+        voice = voice_for(ch.french, ch.french)
+        normal, slow = audio.get(ch.french, slow=False, voice=voice), audio.get(ch.french, slow=True, voice=voice)
         media.update(p for p in (normal, slow) if p)
         note = genanki.Note(
             model=CHUNK_MODEL,
@@ -578,7 +652,9 @@ def build(chunks_csv: Path = CHUNKS_CSV, pairs_csv: Path = PAIRS_CSV, out: Path 
 
     pron = f"{ROOT_DECK}::Prononciation"
     for j, p in enumerate(pairs):
-        a1, a2 = audio.get(p.word1, slow=False), audio.get(p.word2, slow=False)
+        # Both words of a pair MUST use the same voice, or the voice would give the answer away.
+        pv = pair_voice(p.word1, p.word2)
+        a1, a2 = audio.get(p.word1, slow=False, voice=pv), audio.get(p.word2, slow=False, voice=pv)
         media.update(x for x in (a1, a2) if x)
         note = genanki.Note(
             model=PAIRE_MODEL,
@@ -594,6 +670,9 @@ def build(chunks_csv: Path = CHUNKS_CSV, pairs_csv: Path = PAIRS_CSV, out: Path 
         res.per_deck[pron] = res.per_deck.get(pron, 0) + 1
 
     res.audio_generated, res.audio_cached, res.audio_failed = audio.generated, audio.cached, audio.failed
+    res.audio_fallbacks, res.voices_used = audio.fallbacks, dict(audio.voices_used)
+    for f in audio.fallbacks:
+        log(f"  ! neural voice failed, used Google voice instead: {f}")
     if audio.failed and not allow_missing_audio:
         for f in audio.failed:
             log(f"  ✗ audio failed: {f}")
@@ -618,7 +697,12 @@ def print_summary(res: BuildResult, log: Callable[[str], None] = print) -> None:
         if deck in res.per_deck:
             log(f"    {deck}: {res.per_deck[deck]} notes")
     log(f"  Audio: {res.audio_generated} new, {res.audio_cached} from cache"
+        + (f", {len(res.audio_fallbacks)} via Google fallback" if res.audio_fallbacks else "")
         + (f", {len(res.audio_failed)} FAILED" if res.audio_failed else ""))
+    if res.voices_used:
+        short = {v.replace("fr-FR-", "").replace("MultilingualNeural", "").replace("Neural", ""): n
+                 for v, n in sorted(res.voices_used.items())}
+        log("  Voices: " + ", ".join(f"{v} {n}" for v, n in short.items()))
 
 
 # ======================================================================================
