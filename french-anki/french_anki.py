@@ -332,23 +332,31 @@ def add_pairs(lines: Iterable[str], path: Path = PAIRS_CSV, today: str | None = 
 GTTS = "gtts"
 
 
-def voice_for(speaker_key: str, text: str) -> str:
-    """Stable voice for a note: the speaker comes from speaker_key, the variant from text length."""
-    digest = hashlib.sha1(normalize_text(speaker_key).encode("utf-8")).digest()
-    natural, french_only = SPEAKERS[digest[0] % len(SPEAKERS)]
+def voice_for(index: int, text: str) -> str:
+    """Voice for the index-th item (CSV order): speakers strictly alternate 50/50.
+
+    The CSV is append-only, so an item's position -- and therefore its voice -- never changes.
+    Very short texts use the French-only voice of the same speaker.
+    """
+    natural, french_only = SPEAKERS[index % len(SPEAKERS)]
     return french_only if len(normalize_text(text).split()) <= SHORT_TEXT_MAX_WORDS else natural
 
 
-def pair_voice(word1: str, word2: str) -> str:
-    """One French-only voice for both words of a minimal pair (single words -> no language mix-ups)."""
-    return voice_for(f"{normalize_text(word1)}|{normalize_text(word2)}", "x")
+def pair_voice(index: int) -> str:
+    """One French-only voice for both words of the index-th minimal pair (alternating speakers)."""
+    return SPEAKERS[index % len(SPEAKERS)][1]
 
 
 def audio_filename(text: str, slow: bool, voice: str = GTTS) -> str:
-    if voice == GTTS:  # (key format kept from v1 so the old gTTS cache stays valid)
-        key = f"{normalize_text(text)}|lang={TTS_LANG}|tld={TTS_TLD}|slow={slow}"
+    """frs_<digest>_n.mp3 / frs_<digest>_s.mp3 -- the SAME digest for both speeds.
+
+    The cards' 🐢 button finds the slow file by swapping _n.mp3 -> _s.mp3, so the
+    note type never needs an extra field (adding a field would break updates in Anki).
+    """
+    if voice == GTTS:
+        key = f"{normalize_text(text)}|gtts|lang={TTS_LANG}|tld={TTS_TLD}|v2"
     else:
-        key = f"{normalize_text(text)}|edge|{voice}|rate={EDGE_SLOW_RATE if slow else '+0%'}"
+        key = f"{normalize_text(text)}|edge|{voice}|slowrate={EDGE_SLOW_RATE}|v2"
     digest = hashlib.sha1(key.encode("utf-8")).hexdigest()[:16]
     return f"frs_{digest}_{'s' if slow else 'n'}.mp3"
 
@@ -485,59 +493,67 @@ table.pair tr.hit td.w { color: var(--good); }
 .replay-button svg { width: 44px; height: 44px; }  /* bigger tap target for Anki's own play buttons */
 """
 
-# Plays a media file *without* autoplay (Anki autoplays every [sound:] tag, so the
-# "vitesse normale" button on the LISTEN front uses HTML5 audio instead).
+# Anki autoplays every [sound:] tag. The NORMAL-speed audio autoplays; the slow version
+# is only played when you tap 🐢 (HTML5 audio, so it never autoplays). The slow filename
+# is derived from AudioNormalFile (frs_<digest>_n.mp3 -> frs_<digest>_s.mp3).
 PLAY_JS = """<script>
 function frsPlay(src){try{if(window.__frsAudio){window.__frsAudio.pause();}
 window.__frsAudio=new Audio(src);window.__frsAudio.play();}catch(e){}}
+function frsSlow(n){frsPlay(n.replace(/_n\\.mp3$/,'_s.mp3'));}
 </script>"""
 
 
-def _btn(field_name: str, label: str) -> str:
-    return (f'{{{{#{field_name}}}}}<button class="play" onclick="frsPlay(\'{{{{{field_name}}}}}\')">'
-            f"{label}</button>{{{{/{field_name}}}}}")
+def _btn(label: str, slow: bool) -> str:
+    fn = "frsSlow" if slow else "frsPlay"
+    return (f'{{{{#AudioNormalFile}}}}<button class="play" onclick="{fn}(\'{{{{AudioNormalFile}}}}\')">'
+            f"{label}</button>{{{{/AudioNormalFile}}}}")
+
+
+SLOW_BTN = f'<div class="btns">{_btn("🐢 Lentement", slow=True)}</div>\n{PLAY_JS}'
+BOTH_BTNS = f'<div class="btns">{_btn("▶ Réécouter", slow=False)}{_btn("🐢 Lentement", slow=True)}</div>\n{PLAY_JS}'
 
 
 CHUNK_FIELDS = [
     "French", "English", "AudioNormal", "AudioSlow", "Tags", "Note",
     # Helper fields (filled automatically, not shown on cards):
     "Shadow",           # "1" when the chunk is tagged shadow -> creates the SHADOW card
-    "AudioNormalFile",  # bare filename of the normal-speed MP3, for the non-autoplay button
+    "AudioNormalFile",  # bare filename of the normal MP3 (the 🐢 button derives the slow one)
 ]
 
 LISTEN_Q = f"""<div class="kind">🎧 Écoute</div>
-<div class="audio">{{{{AudioSlow}}}}</div>
+<div class="audio">{{{{AudioNormal}}}}</div>
 <div class="prompt">Écoutez et répétez</div>
-<div class="btns">{_btn("AudioNormalFile", "▶ Vitesse normale")}</div>
-{PLAY_JS}"""
+{SLOW_BTN}"""
 
 LISTEN_A = f"""<div class="kind">🎧 Écoute</div>
 <div class="fr">{{{{French}}}}</div>
 <div class="en">{{{{English}}}}</div>
 {{{{#Note}}}}<div class="note">{{{{Note}}}}</div>{{{{/Note}}}}
-<div class="btns">{_btn("AudioNormalFile", "▶ Réécouter")}</div>
-{PLAY_JS}"""
+{BOTH_BTNS}"""
 
 SPEAK_Q = """<div class="kind">🗣️ Parlez</div>
 <div class="big">{{English}}</div>
 <div class="prompt">Dites-le à voix haute, puis retournez la carte.</div>"""
 
-SPEAK_A = """{{FrontSide}}
+SPEAK_A = f"""{{{{FrontSide}}}}
 <hr id="answer">
-<div class="fr">{{French}}</div>
-{{AudioNormal}}
-{{#Note}}<div class="note">{{Note}}</div>{{/Note}}"""
+<div class="fr">{{{{French}}}}</div>
+<div class="audio">{{{{AudioNormal}}}}</div>
+{{{{#Note}}}}<div class="note">{{{{Note}}}}</div>{{{{/Note}}}}
+{SLOW_BTN}"""
 
-SHADOW_Q = """{{#Shadow}}<div class="kind">🔁 Shadowing</div>
-<div class="audio">{{AudioNormal}}</div>
-<div class="fr">{{French}}</div>
-<div class="prompt">Écoutez et parlez en même temps.</div>{{/Shadow}}"""
+SHADOW_Q = f"""{{{{#Shadow}}}}<div class="kind">🔁 Shadowing</div>
+<div class="audio">{{{{AudioNormal}}}}</div>
+<div class="fr">{{{{French}}}}</div>
+<div class="prompt">Écoutez et parlez en même temps.</div>
+{SLOW_BTN}{{{{/Shadow}}}}"""
 
-SHADOW_A = """{{#Shadow}}<div class="kind">🔁 Shadowing</div>
-<div class="fr">{{French}}</div>
+SHADOW_A = f"""{{{{#Shadow}}}}<div class="kind">🔁 Shadowing</div>
+<div class="fr">{{{{French}}}}</div>
 <div class="big">Répétez 3 fois</div>
-{{AudioNormal}}
-<div class="en">{{English}}</div>{{/Shadow}}"""
+<div class="audio">{{{{AudioNormal}}}}</div>
+<div class="en">{{{{English}}}}</div>
+{SLOW_BTN}{{{{/Shadow}}}}"""
 
 CHUNK_MODEL = genanki.Model(
     MODEL_ID_CHUNK,
@@ -610,6 +626,7 @@ class BuildResult:
     audio_failed: list = field(default_factory=list)
     audio_fallbacks: list = field(default_factory=list)
     voices_used: dict = field(default_factory=dict)
+    audio_pruned: int = 0
 
 
 def _html(text: str) -> str:
@@ -632,7 +649,7 @@ def build(chunks_csv: Path = CHUNKS_CSV, pairs_csv: Path = PAIRS_CSV, out: Path 
     log(f"Audio: checking {total} files (new ones are generated with France-French neural voices)...")
 
     for i, ch in enumerate(chunks):
-        voice = voice_for(ch.french, ch.french)
+        voice = voice_for(i, ch.french)
         normal, slow = audio.get(ch.french, slow=False, voice=voice), audio.get(ch.french, slow=True, voice=voice)
         media.update(p for p in (normal, slow) if p)
         note = genanki.Note(
@@ -655,7 +672,7 @@ def build(chunks_csv: Path = CHUNKS_CSV, pairs_csv: Path = PAIRS_CSV, out: Path 
     pron = f"{ROOT_DECK}::Prononciation"
     for j, p in enumerate(pairs):
         # Both words of a pair MUST use the same voice, or the voice would give the answer away.
-        pv = pair_voice(p.word1, p.word2)
+        pv = pair_voice(j)
         a1, a2 = audio.get(p.word1, slow=False, voice=pv), audio.get(p.word2, slow=False, voice=pv)
         media.update(x for x in (a1, a2) if x)
         note = genanki.Note(
@@ -688,6 +705,12 @@ def build(chunks_csv: Path = CHUNKS_CSV, pairs_csv: Path = PAIRS_CSV, out: Path 
     tmp = out.with_suffix(".apkg.part")
     pkg.write_to_file(str(tmp))
     tmp.replace(out)
+    # Remove cached MP3s that no note uses any more (e.g. after a voice change).
+    used = {p.name for p in media}
+    for f in audio.media_dir.glob("frs_*.mp3"):
+        if f.name not in used:
+            f.unlink()
+            res.audio_pruned += 1
     return res
 
 
@@ -700,7 +723,8 @@ def print_summary(res: BuildResult, log: Callable[[str], None] = print) -> None:
             log(f"    {deck}: {res.per_deck[deck]} notes")
     log(f"  Audio: {res.audio_generated} new, {res.audio_cached} from cache"
         + (f", {len(res.audio_fallbacks)} via Google fallback" if res.audio_fallbacks else "")
-        + (f", {len(res.audio_failed)} FAILED" if res.audio_failed else ""))
+        + (f", {len(res.audio_failed)} FAILED" if res.audio_failed else "")
+        + (f", {res.audio_pruned} unused removed" if res.audio_pruned else ""))
     if res.voices_used:
         short = {v.replace("fr-FR-", "").replace("MultilingualNeural", "").replace("Neural", ""): n
                  for v, n in sorted(res.voices_used.items())}

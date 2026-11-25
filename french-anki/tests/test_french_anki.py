@@ -43,7 +43,8 @@ class FakeTTS:
 
 def fname(text, slow):
     """Expected media filename for a chunk's audio."""
-    return fa.audio_filename(text, slow, fa.voice_for(text, text))
+    idx = [l.split(";")[0].strip() for l in TODAY].index(text)  # position in the CSV
+    return fa.audio_filename(text, slow, fa.voice_for(idx, text))
 
 
 @pytest.fixture
@@ -190,11 +191,15 @@ def test_card_faces(work):
         assert set(cards) == {"1 Listen", "2 Speak"}  # not tagged shadow -> no shadow card
         listen_q = cards["1 Listen"].question()
         assert "Ça marche" not in listen_q and "Sounds good" not in listen_q  # no text on LISTEN front
-        assert "Écoutez et répétez" in listen_q and "frsPlay('frs_" in listen_q
         slow_name = fname("Ça marche.", slow=True)
         normal_name = fname("Ça marche.", slow=False)
+        assert "Écoutez et répétez" in listen_q and f"frsSlow('{normal_name}')" in listen_q
         q_sounds = [t.filename for t in cards["1 Listen"].question_av_tags()]
-        assert q_sounds == [slow_name], "only the SLOW audio autoplays on the LISTEN front"
+        assert q_sounds == [normal_name], "only the NORMAL audio autoplays on the LISTEN front"
+        assert slow_name == normal_name.replace("_n.mp3", "_s.mp3"), "🐢 button derives the slow file"
+        assert slow_name in {p.name for p in work["media"].iterdir()}
+        for c in cards.values():  # a slow button wherever there is audio
+            assert "🐢" in c.answer()
         assert "Sounds good" in cards["1 Listen"].answer() and "Ça marche." in cards["1 Listen"].answer()
 
         speak_q = cards["2 Speak"].question()
@@ -209,7 +214,7 @@ def test_card_faces(work):
 
         pid = col.find_notes('"Word1:sous"')[0]
         p1, p2 = sorted(col.get_note(pid).cards(), key=lambda c: c.ord)
-        pv = fa.pair_voice("sous", "sur")
+        pv = fa.pair_voice(0)
         assert [t.filename for t in p1.question_av_tags()] == [fa.audio_filename("sous", False, pv)]
         assert [t.filename for t in p2.question_av_tags()] == [fa.audio_filename("sur", False, pv)]
         assert "under" in p1.answer() and "on" in p1.answer() and "ou vs u" in p1.answer()
@@ -326,36 +331,49 @@ NATURAL = {v for v, _ in fa.SPEAKERS}
 FRENCH_ONLY = {v for _, v in fa.SPEAKERS}
 
 
-def test_voice_is_stable_per_chunk_and_both_speakers_are_used():
-    texts = [l.split(";")[0].strip() for l in TODAY] + [f"Phrase numéro {i} pour tester." for i in range(20)]
-    voices = [fa.voice_for(t, t) for t in texts]
-    assert voices == [fa.voice_for(t, t) for t in texts], "same text must always get the same voice"
-    long_voices = {fa.voice_for(t, t) for t in texts if len(t.split()) > 2}
-    assert long_voices == NATURAL, "a mix of the two chosen natural voices"
+def test_voices_alternate_50_50_in_csv_order():
+    texts = [f"Phrase numéro {i} pour tester." for i in range(10)]
+    voices = [fa.voice_for(i, t) for i, t in enumerate(texts)]
+    assert voices[0::2] == [fa.SPEAKERS[0][0]] * 5 and voices[1::2] == [fa.SPEAKERS[1][0]] * 5
+    assert {v for v in voices} == NATURAL
+
+
+def test_built_deck_is_balanced(work):
+    fa.add_chunks([f"Phrase de test numéro {i}. ; Test sentence {i}. ; la_vie" for i in range(7)],
+                  path=work["chunks"], log=lambda *_: None)
+    res = do_build(work)
+    natural = [res.voices_used.get(v, 0) for v in sorted(NATURAL)]
+    assert abs(natural[0] - natural[1]) <= 2, res.voices_used  # 2 files per chunk
 
 
 def test_short_texts_use_french_only_voice_of_same_speaker():
-    v_long = fa.voice_for("Ça marche bien aujourd'hui.", "Ça marche bien aujourd'hui.")
-    v_short = fa.voice_for("Ça marche bien aujourd'hui.", "Ça marche.")
-    assert v_long in NATURAL and v_short in FRENCH_ONLY
-    assert fa.SPEAKERS.index(next(s for s in fa.SPEAKERS if v_long in s)) == \
-        fa.SPEAKERS.index(next(s for s in fa.SPEAKERS if v_short in s)), "same gender/speaker"
+    for i in range(2):
+        v_long, v_short = fa.voice_for(i, "Ça marche bien aujourd'hui."), fa.voice_for(i, "Ça marche.")
+        assert (v_long, v_short) == fa.SPEAKERS[i]
 
 
-def test_pair_words_share_one_french_only_voice(work):
+def test_pair_words_share_one_french_only_voice_and_pairs_alternate(work):
     do_build(work)
-    pv = fa.pair_voice("pain", "bain")
-    assert pv in FRENCH_ONLY
+    assert fa.pair_voice(0) != fa.pair_voice(1) and {fa.pair_voice(0), fa.pair_voice(1)} == FRENCH_ONLY
+    pv = fa.pair_voice(1)  # pain/bain is the 2nd pair in the fixture
     assert (work["media"] / fa.audio_filename("pain", False, pv)).exists()
     assert (work["media"] / fa.audio_filename("bain", False, pv)).exists()
 
 
-def test_slow_audio_uses_same_voice(work):
+def test_slow_audio_uses_same_voice_and_digest(work):
     do_build(work)
     t = "Avez-vous des allergies à des médicaments ?"
-    v = fa.voice_for(t, t)
-    assert (work["media"] / fa.audio_filename(t, True, v)).exists()
-    assert fa.audio_filename(t, True, v) != fa.audio_filename(t, False, v)
+    n, sl = fname(t, False), fname(t, True)
+    assert (work["media"] / sl).exists() and sl == n.replace("_n.mp3", "_s.mp3")
+
+
+def test_unused_audio_is_pruned(work):
+    do_build(work)
+    stale = work["media"] / "frs_0000000000000000_n.mp3"
+    stale.write_bytes(b"old")
+    res = do_build(work)
+    assert not stale.exists() and res.audio_pruned == 1
+    assert len(list(work["media"].glob("*.mp3"))) == 2 * len(TODAY) + 4
 
 
 def test_falls_back_to_gtts_when_neural_voice_fails(work):
