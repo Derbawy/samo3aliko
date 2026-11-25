@@ -124,7 +124,8 @@ def strip_accents(text: str) -> str:
 def normalize_tags(raw: str) -> tuple[list[str], list[str]]:
     """Return (canonical_tags, unknown_tags). Unknown tags are kept (sanitised) but reported."""
     tags, unknown = [], []
-    for tok in re.split(r"[\s,]+", (raw or "").strip()):
+    raw = re.sub(r"\bla[\s_\-]+vie\b", "la_vie", raw or "", flags=re.IGNORECASE)  # "la vie" = one tag
+    for tok in re.split(r"[\s,]+", raw.strip()):
         if not tok:
             continue
         low = tok.lower()
@@ -286,9 +287,10 @@ def add_chunks(lines: Iterable[str], path: Path = CHUNKS_CSV, today: str | None 
             log(f"  = already have: {row['french']}")
             skipped += 1
             continue
-        _, unknown = normalize_tags(row["tags"])
+        canon, unknown = normalize_tags(row["tags"])
         if unknown:
             log(f"  ! unknown tag(s) {unknown} on: {row['french']}")
+        row["tags"] = " ".join(canon)  # store the canonical spelling (la_vie, ecole, ...)
         existing.add(g)
         row["date_added"] = today
         new_rows.append(row)

@@ -367,3 +367,15 @@ def test_falls_back_to_gtts_when_neural_voice_fails(work):
     assert work["out"].exists() and not res.audio_failed
     assert len(res.audio_fallbacks) == len(fb.calls) > 0
     assert (work["media"] / fa.audio_filename("Ça marche.", False, fa.GTTS)).exists()
+
+
+def test_la_vie_with_space_is_one_tag(work):
+    assert fa.normalize_tags("la vie shadow") == (["la_vie", "shadow"], [])
+    assert fa.normalize_tags("La-Vie") == (["la_vie"], [])
+    fa.add_chunks(["Elle avait une sucette. ; She had a lollipop. ; la vie",
+                   "Quel dessin animé vous aimez ? ; Which cartoon do you like? ; école shadow"],
+                  path=work["chunks"], log=lambda *_: None)
+    rows = fa.load_chunks(work["chunks"], warn=lambda *_: None)
+    assert rows[-2].tags == ["la_vie"] and rows[-1].tags == ["ecole", "shadow"]
+    raw = work["chunks"].read_text(encoding="utf-8-sig")
+    assert ",la_vie," in raw and ",ecole shadow," in raw
